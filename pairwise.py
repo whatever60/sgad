@@ -2,34 +2,8 @@ from __future__ import annotations
 
 import math
 import random
-from typing import Iterable
 
 import numpy as np
-
-
-def build_score_matrix(
-    *,
-    alphabet: str = "ACGT",
-    match: int = 2,
-    mismatch: int = -1,
-) -> np.ndarray:
-    """
-    Build a simple substitution matrix.
-
-    Default: diagonal = match, off-diagonal = mismatch.
-
-    Args:
-        alphabet: Symbols covered by the matrix (order matters).
-        match: Score for identical symbols.
-        mismatch: Score for non-identical symbols.
-
-    Returns:
-        A (K, K) numpy array of scores, where K=len(alphabet).
-    """
-    k = len(alphabet)
-    mat = np.full((k, k), mismatch, dtype=np.int64)
-    np.fill_diagonal(mat, match)
-    return mat
 
 
 def to_ascii(
@@ -70,10 +44,7 @@ def needleman_wunsch(
     seq1: str,
     seq2: str,
     *,
-    score_matrix: np.ndarray | None = None,
-    alphabet: str = "ACGT",
-    match: int = 2,
-    mismatch: int = -1,
+    score_matrix: dict[str, dict[str, int | float]],
     gap_open: int = -5,
     gap_extend: int = -1,
     seq1_left_free: bool = False,
@@ -82,42 +53,23 @@ def needleman_wunsch(
     seq2_right_free: bool = False,
 ) -> tuple[str, str, float]:
     """
-    Needleman–Wunsch global alignment with affine gaps and configurable free end-gaps.
+        Pairwise global alignment (Needleman–Wunsch) with affine gaps and free end-gaps,
+        implemented via 2-bit mask states (the 2D analogue of the 3D implementation).
 
-    This version uses:
-      - a 3D tensor for DP scores: dp[state, i, j]
-      - pointer tensors that store (prev_state, di, dj) so traceback is uniform:
-            prev_state = ptr[state, i, j]
-            di = ptr_di[state, i, j]
-            dj = ptr_dj[state, i, j]
-            i -= di; j -= dj; state = prev_state
+        A DP cell (i, j) means i chars are consumed from seq1 and j from seq2.
 
-    States (affine gap model):
-      - M  : ends with a paired base (match/mismatch)
-      - IX : ends with a gap in seq2  (seq1 base aligned to '-')
-      - IY : ends with a gap in seq1  ('-' aligned to seq2 base)
+        Mask states (all-gap mask is excluded):
+            - mask 0 (00): letter/letter
+            - mask 1 (01): gap in seq1, letter in seq2
+            - mask 2 (10): letter in seq1, gap in seq2
 
-    Gap scoring uses negative scores (penalties are negative values):
-      gap_run_score(length=k) = gap_open + gap_extend * (k - 1)
-    where gap_open <= 0 and gap_extend <= 0.
-
-    End-gap flags semantics (free terminal gaps):
-      - seq1_left_free  => leading gaps in seq1 are free  (top row IY[0,*])
-      - seq1_right_free => trailing gaps in seq1 are free (may end early on last row)
-      - seq2_left_free  => leading gaps in seq2 are free  (left col IX[*,0])
-      - seq2_right_free => trailing gaps in seq2 are free (may end early on last col)
-
-    Substitution scoring:
-      - Provide `score_matrix` (shape KxK), with `alphabet` defining indices
-      - If score_matrix is None, a diagonal matrix is built from match/mismatch.
+        Affine gap penalties are computed from transitions between previous and current masks.
+        End-free behavior is handled by zeroing gap penalties on corresponding boundaries.
 
     Args:
         seq1: DNA sequence 1.
         seq2: DNA sequence 2.
-        score_matrix: Optional substitution matrix of shape (K,K).
-        alphabet: Symbols covered by the substitution matrix.
-        match: Used only if score_matrix is None (diagonal score).
-        mismatch: Used only if score_matrix is None (off-diagonal score).
+        score_matrix: Substitution matrix written as dict-of-dicts.
         gap_open: Negative score for opening a gap.
         gap_extend: Negative score for extending a gap by 1.
         seq1_left_free: If True, gaps in seq1 at the left end are free (0 score).
@@ -133,17 +85,10 @@ def needleman_wunsch(
     n = len(a)
     m = len(b)
 
-    if score_matrix is None:
-        score_matrix = build_score_matrix(alphabet=alphabet, match=match, mismatch=mismatch)
-    else:
-        score_matrix = np.asarray(score_matrix)
-        if score_matrix.ndim != 2 or score_matrix.shape[0] != score_matrix.shape[1]:
-            raise ValueError("score_matrix must be a square 2D array.")
-        if score_matrix.shape[0] != len(alphabet):
-            raise ValueError("score_matrix size must match len(alphabet).")
-
-    # Map symbols to indices for matrix lookup.
-    sym_to_idx = {ch: i for i, ch in enumerate(alphabet)}
+    BIT_SEQ1 = 0
+    BIT_SEQ2 = 1
+    MASK_SEQ1 = 1 << BIT_SEQ1
+    MASK_SEQ2 = 1 << BIT_SEQ2
 
     # ---- Empty-sequence edge cases ----
     if n == 0 and m == 0:
@@ -159,168 +104,95 @@ def needleman_wunsch(
         score = 0.0 if gap_free else float(gap_open + gap_extend * (n - 1)) if n > 0 else 0.0
         return a, "-" * n, score
 
-    # ---- DP storage (tensor form) ----
-    M, IX, IY = 0, 1, 2
+    # Masks (exclude 3 == both gaps)
+    masks = np.array([0, 1, 2], dtype=np.int8)
+    num_states = masks.size
+
+    # Step deltas implied by mask bits
+    step_i = np.array([0 if ((int(mask) >> BIT_SEQ1) & 1) else 1 for mask in masks], dtype=np.int8)
+    step_j = np.array([0 if ((int(mask) >> BIT_SEQ2) & 1) else 1 for mask in masks], dtype=np.int8)
+
     neg_inf = -math.inf
 
-    dp = np.full((3, n + 1, m + 1), neg_inf, dtype=np.float64)  # scores
-    ptr = np.full((3, n + 1, m + 1), -1, dtype=np.int8)  # previous state
-    ptr_di = np.zeros((3, n + 1, m + 1), dtype=np.int8)  # traceback delta i
-    ptr_dj = np.zeros((3, n + 1, m + 1), dtype=np.int8)  # traceback delta j
+    dp = np.full((num_states, n + 1, m + 1), neg_inf, dtype=np.float64)
+    ptr_state = np.full((num_states, n + 1, m + 1), -1, dtype=np.int8)
+    ptr_di = np.zeros((num_states, n + 1, m + 1), dtype=np.int8)
+    ptr_dj = np.zeros((num_states, n + 1, m + 1), dtype=np.int8)
 
-    # Init origin
-    dp[M, 0, 0] = 0.0
-    ptr[M, 0, 0] = M
-    ptr_di[M, 0, 0] = 0
-    ptr_dj[M, 0, 0] = 0
+    # Start at (0,0) with mask 0 as benign prior state.
+    dp[0, 0, 0] = 0.0
+    ptr_state[0, 0, 0] = 0
 
-    # ---- Boundary initialization ----
-    # First column (j=0): only IX can be finite for i>0 (gap in seq2).
-    # If seq2_left_free, leading gaps in seq2 are free => IX[i,0] = 0.
-    if seq2_left_free:
-        for i in range(1, n + 1):
-            dp[IX, i, 0] = 0.0
-            ptr[IX, i, 0] = M if i == 1 else IX
-            ptr_di[IX, i, 0] = 1
-            ptr_dj[IX, i, 0] = 0
-    else:
-        for i in range(1, n + 1):
-            if i == 1:
-                dp[IX, i, 0] = dp[M, i - 1, 0] + gap_open
-                ptr[IX, i, 0] = M
-            else:
-                dp[IX, i, 0] = dp[IX, i - 1, 0] + gap_extend
-                ptr[IX, i, 0] = IX
-            ptr_di[IX, i, 0] = 1
-            ptr_dj[IX, i, 0] = 0
+    def gap_penalty(cur_mask: int, prev_mask: int, i_: int, j_: int) -> int:
+        pen = 0
 
-    # First row (i=0): only IY can be finite for j>0 (gap in seq1).
-    # If seq1_left_free, leading gaps in seq1 are free => IY[0,j] = 0.
-    if seq1_left_free:
-        for j in range(1, m + 1):
-            dp[IY, 0, j] = 0.0
-            ptr[IY, 0, j] = M if j == 1 else IY
-            ptr_di[IY, 0, j] = 0
-            ptr_dj[IY, 0, j] = 1
-    else:
-        for j in range(1, m + 1):
-            if j == 1:
-                dp[IY, 0, j] = dp[M, 0, j - 1] + gap_open
-                ptr[IY, 0, j] = M
-            else:
-                dp[IY, 0, j] = dp[IY, 0, j - 1] + gap_extend
-                ptr[IY, 0, j] = IY
-            ptr_di[IY, 0, j] = 0
-            ptr_dj[IY, 0, j] = 1
+        # seq1 is gapped in mask bit0
+        if cur_mask & MASK_SEQ1:
+            if not ((i_ == 0 and seq1_left_free) or (i_ == n and seq1_right_free)):
+                pen += gap_extend if (prev_mask & MASK_SEQ1) else gap_open
+
+        # seq2 is gapped in mask bit1
+        if cur_mask & MASK_SEQ2:
+            if not ((j_ == 0 and seq2_left_free) or (j_ == m and seq2_right_free)):
+                pen += gap_extend if (prev_mask & MASK_SEQ2) else gap_open
+
+        return pen
+
+    def col_sub_score(mask: int, i_: int, j_: int) -> float:
+        if mask != 0:
+            return 0.0
+        return float(score_matrix[a[i_ - 1]][b[j_ - 1]])
 
     # ---- DP fill ----
-    for i in range(1, n + 1):
-        ai = a[i - 1]
-        try:
-            ai_idx = sym_to_idx[ai]
-        except KeyError as e:
-            raise ValueError(f"Character {ai!r} not in alphabet={alphabet!r}.") from e
+    for i in range(0, n + 1):
+        for j in range(0, m + 1):
+            if i == 0 and j == 0:
+                continue
 
-        for j in range(1, m + 1):
-            bj = b[j - 1]
-            try:
-                bj_idx = sym_to_idx[bj]
-            except KeyError as e:
-                raise ValueError(f"Character {bj!r} not in alphabet={alphabet!r}.") from e
+            for s, mask in enumerate(masks):
+                di = int(step_i[s])
+                dj = int(step_j[s])
+                if i < di or j < dj:
+                    continue
 
-            sub = float(score_matrix[ai_idx, bj_idx])
+                pi, pj = i - di, j - dj
+                sub = col_sub_score(int(mask), i, j)
 
-            # M from diagonal of any state
-            diag = dp[:, i - 1, j - 1]  # shape (3,)
-            prev_state = int(np.argmax(diag))
-            dp[M, i, j] = float(diag[prev_state] + sub)
-            ptr[M, i, j] = prev_state
-            ptr_di[M, i, j] = 1
-            ptr_dj[M, i, j] = 1
+                best = neg_inf
+                best_prev = -1
 
-            # IX from up: open from M or extend from IX
-            open_from_M = dp[M, i - 1, j] + gap_open
-            extend_from_IX = dp[IX, i - 1, j] + gap_extend
-            if open_from_M >= extend_from_IX:
-                dp[IX, i, j] = open_from_M
-                ptr[IX, i, j] = M
-            else:
-                dp[IX, i, j] = extend_from_IX
-                ptr[IX, i, j] = IX
-            ptr_di[IX, i, j] = 1
-            ptr_dj[IX, i, j] = 0
+                for ps, prev_mask in enumerate(masks):
+                    prev = dp[ps, pi, pj]
+                    if prev == neg_inf:
+                        continue
 
-            # IY from left: open from M or extend from IY
-            open_from_M = dp[M, i, j - 1] + gap_open
-            extend_from_IY = dp[IY, i, j - 1] + gap_extend
-            if open_from_M >= extend_from_IY:
-                dp[IY, i, j] = open_from_M
-                ptr[IY, i, j] = M
-            else:
-                dp[IY, i, j] = extend_from_IY
-                ptr[IY, i, j] = IY
-            ptr_di[IY, i, j] = 0
-            ptr_dj[IY, i, j] = 1
+                    score = float(prev + sub + gap_penalty(int(mask), int(prev_mask), i, j))
+                    if score > best:
+                        best = score
+                        best_prev = ps
 
-    # ---- Termination (choose traceback start on allowed edges) ----
-    def best_state_at(ii: int, jj: int) -> tuple[float, int]:
-        states = dp[:, ii, jj]
-        st = int(np.argmax(states))
-        return float(states[st]), st
+                if best_prev >= 0:
+                    dp[s, i, j] = best
+                    ptr_state[s, i, j] = best_prev
+                    ptr_di[s, i, j] = di
+                    ptr_dj[s, i, j] = dj
 
-    best_i, best_j = n, m
-    best_score, best_state = best_state_at(n, m)
-
-    if seq1_right_free and seq2_right_free:
-        # Can end on last row OR last col (but not arbitrary interior).
-        best_score = -math.inf
-
-        for jj in range(0, m + 1):
-            sc, st = best_state_at(n, jj)
-            if sc > best_score:
-                best_score, best_state = sc, st
-                best_i, best_j = n, jj
-
-        for ii in range(0, n + 1):
-            sc, st = best_state_at(ii, m)
-            if sc > best_score:
-                best_score, best_state = sc, st
-                best_i, best_j = ii, m
-
-    elif seq1_right_free and not seq2_right_free:
-        best_score = -math.inf
-        for jj in range(0, m + 1):
-            sc, st = best_state_at(n, jj)
-            if sc > best_score:
-                best_score, best_state = sc, st
-                best_i, best_j = n, jj
-
-    elif seq2_right_free and not seq1_right_free:
-        best_score = -math.inf
-        for ii in range(0, n + 1):
-            sc, st = best_state_at(ii, m)
-            if sc > best_score:
-                best_score, best_state = sc, st
-                best_i, best_j = ii, m
+    # ---- Termination at (n,m) ----
+    end_scores = dp[:, n, m]
+    best_state = int(np.argmax(end_scores))
+    best_score = float(end_scores[best_state])
 
     # ---- Backtrack ----
-    i, j, state = best_i, best_j, best_state
+    i, j, state = n, m, best_state
     out_a: list[str] = []
     out_b: list[str] = []
 
     while i > 0 or j > 0:
-        # Emit alignment column based on current state.
-        if state == M:
-            out_a.append(a[i - 1])
-            out_b.append(b[j - 1])
-        elif state == IX:
-            out_a.append(a[i - 1])
-            out_b.append("-")
-        else:  # state == IY
-            out_a.append("-")
-            out_b.append(b[j - 1])
+        mask = int(masks[state])
+        out_a.append("-" if (mask & MASK_SEQ1) else a[i - 1])
+        out_b.append("-" if (mask & MASK_SEQ2) else b[j - 1])
 
-        prev_state = int(ptr[state, i, j])
+        prev_state = int(ptr_state[state, i, j])
         di = int(ptr_di[state, i, j])
         dj = int(ptr_dj[state, i, j])
 
@@ -334,16 +206,6 @@ def needleman_wunsch(
     aligned_a = "".join(reversed(out_a))
     aligned_b = "".join(reversed(out_b))
 
-    # ---- Pad suffix on the sequence that is allowed to have trailing gaps ----
-    # If we ended on last row (i=n) with j<m, pad seq2's remaining suffix against gaps in seq1.
-    if best_i == n and best_j < m and seq1_right_free:
-        aligned_a += "-" * (m - best_j)
-        aligned_b += b[best_j:]
-    # If we ended on last col (j=m) with i<n, pad seq1's remaining suffix against gaps in seq2.
-    if best_j == m and best_i < n and seq2_right_free:
-        aligned_a += a[best_i:]
-        aligned_b += "-" * (n - best_i)
-
     return aligned_a, aligned_b, float(best_score)
 
 
@@ -351,8 +213,7 @@ def score_alignment(
     aligned_seq1: str,
     aligned_seq2: str,
     *,
-    score_matrix: np.ndarray,
-    alphabet: str,
+    score_matrix: dict[str, dict[str, int | float]],
     gap_open: int,
     gap_extend: int,
     seq1_left_free: bool,
@@ -369,8 +230,7 @@ def score_alignment(
     Args:
         aligned_seq1: Alignment string for seq1 (includes '-').
         aligned_seq2: Alignment string for seq2 (includes '-').
-        score_matrix: Substitution matrix for symbols in `alphabet`.
-        alphabet: Alphabet defining score_matrix indices.
+        score_matrix: Substitution matrix as dict-of-dicts.
         gap_open: Negative score for opening a gap.
         gap_extend: Negative score for extending a gap.
         seq1_left_free/seq1_right_free: Free-end flags for gaps in seq1.
@@ -381,10 +241,6 @@ def score_alignment(
     """
     if len(aligned_seq1) != len(aligned_seq2):
         raise ValueError("Alignment strings must have same length.")
-    if score_matrix.shape[0] != len(alphabet) or score_matrix.shape[1] != len(alphabet):
-        raise ValueError("score_matrix shape must match len(alphabet).")
-
-    sym_to_idx = {ch: i for i, ch in enumerate(alphabet)}
 
     total = 0
     k = 0
@@ -395,12 +251,7 @@ def score_alignment(
         c2 = aligned_seq2[k]
 
         if c1 != "-" and c2 != "-":
-            try:
-                i1 = sym_to_idx[c1]
-                i2 = sym_to_idx[c2]
-            except KeyError as e:
-                raise ValueError(f"Character {e.args[0]!r} not in alphabet={alphabet!r}.") from e
-            total += int(score_matrix[i1, i2])
+            total += int(score_matrix[c1][c2])
             k += 1
             continue
 
@@ -437,8 +288,7 @@ def brute_force_best_score(
     seq1: str,
     seq2: str,
     *,
-    score_matrix: np.ndarray,
-    alphabet: str,
+    score_matrix: dict[str, dict[str, int | float]],
     gap_open: int,
     gap_extend: int,
     seq1_left_free: bool,
@@ -453,7 +303,7 @@ def brute_force_best_score(
 
     Args:
         seq1, seq2: Sequences to align.
-        score_matrix, alphabet: Substitution scoring.
+        score_matrix: Substitution scoring as dict-of-dicts.
         gap_open, gap_extend: Affine gap scores (negative penalties).
         seq1_left_free/seq1_right_free/seq2_left_free/seq2_right_free: Free-end flags.
 
@@ -475,7 +325,6 @@ def brute_force_best_score(
                 "".join(out_a),
                 "".join(out_b),
                 score_matrix=score_matrix,
-                alphabet=alphabet,
                 gap_open=gap_open,
                 gap_extend=gap_extend,
                 seq1_left_free=seq1_left_free,
@@ -519,13 +368,17 @@ if __name__ == "__main__":
     s1 = "ACGTTGAC"
     s2 = "ACTTGACC"
 
-    mat = build_score_matrix(alphabet="ACGT", match=2, mismatch=-1)
+    mat: dict[str, dict[str, int | float]] = {
+        "A": {"A": 2, "C": -1, "G": -1, "T": -1},
+        "C": {"A": -1, "C": 2, "G": -1, "T": -1},
+        "G": {"A": -1, "C": -1, "G": 2, "T": -1},
+        "T": {"A": -1, "C": -1, "G": -1, "T": 2},
+    }
 
     aligned1, aligned2, score = needleman_wunsch(
         s1,
         s2,
         score_matrix=mat,
-        alphabet="ACGT",
         gap_open=-5,
         gap_extend=-1,
     )
@@ -536,7 +389,6 @@ if __name__ == "__main__":
         s1,
         s2,
         score_matrix=mat,
-        alphabet="ACGT",
         gap_open=-5,
         gap_extend=-1,
         seq1_left_free=True,
@@ -563,7 +415,12 @@ if __name__ == "__main__":
     mismatch = -1
     gap_open = -5
     gap_extend = -1
-    mat = build_score_matrix(alphabet=alphabet, match=match, mismatch=mismatch)
+    mat: dict[str, dict[str, int | float]] = {
+        "A": {"A": match, "C": mismatch, "G": mismatch, "T": mismatch},
+        "C": {"A": mismatch, "C": match, "G": mismatch, "T": mismatch},
+        "G": {"A": mismatch, "C": mismatch, "G": match, "T": mismatch},
+        "T": {"A": mismatch, "C": mismatch, "G": mismatch, "T": match},
+    }
 
     print("=== Brute-force score checks (n,m <= 4) ===")
     all_ok = True
@@ -578,7 +435,6 @@ if __name__ == "__main__":
                 a,
                 b,
                 score_matrix=mat,
-                alphabet=alphabet,
                 gap_open=gap_open,
                 gap_extend=gap_extend,
                 **flags,
@@ -587,7 +443,6 @@ if __name__ == "__main__":
                 a,
                 b,
                 score_matrix=mat,
-                alphabet=alphabet,
                 gap_open=gap_open,
                 gap_extend=gap_extend,
                 **flags,
@@ -600,7 +455,6 @@ if __name__ == "__main__":
                     a,
                     b,
                     score_matrix=mat,
-                    alphabet=alphabet,
                     gap_open=gap_open,
                     gap_extend=gap_extend,
                     **flags,
