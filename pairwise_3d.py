@@ -179,11 +179,29 @@ def needleman_wunsch_3d(
     with respect to the final alignment string, avoiding cases where a "padded" gap would
     become internal after additional columns.
 
+    Tie-breaking (deterministic behavior)
+    -------------------------------------
+    Multiple alignments can share the same optimal score. This implementation is
+    deterministic because it uses fixed iteration order and strict comparisons.
+
+    During DP updates, predecessor states are scanned in `masks` order and the
+    predecessor is updated only on a strict improvement (`>`). So exact-score ties
+    keep the first predecessor encountered.
+
+    With default `masks = [0, 1, 2, 3, 4, 5, 6]`, predecessor ties prefer earlier
+    masks in that order.
+
+    In affine-gap terms (open vs extend), ties are resolved by that same predecessor
+    ordering because open/extend is represented by `prev_mask -> cur_mask` transitions.
+
+    At termination, the end state is selected with `np.argmax` over states at
+    (n, m, len3), so final-state ties also prefer earlier masks in the same order.
+
     Args:
         seq1: DNA sequence 1.
         seq2: DNA sequence 2.
         seq3: DNA sequence 3.
-        score_matrix: Substitution matrix (typically a numpy array) used for sum-of-pairs.
+        score_matrix: Substitution matrix as dict-of-dicts used for sum-of-pairs.
         gap_open: Negative gap score for opening a gap (per sequence).
         gap_extend: Negative gap score for extending a gap by 1 (per sequence).
         seq1_left_free: If True, leading gaps in seq1 are free.
@@ -209,7 +227,7 @@ def needleman_wunsch_3d(
     MASK_SEQ3 = 1 << BIT_SEQ3
 
     # Masks exclude 7 (all gaps)
-    masks = np.array([0, 1, 2, 3, 4, 5, 6], dtype=np.int8)
+    masks = np.array([0, 1, 2, 3, 4, 5, 6], dtype=np.int8)  # Fixed order defines tie preference.
     num_states = masks.size
 
     # Steps implied by mask bits
@@ -293,6 +311,7 @@ def needleman_wunsch_3d(
                         if prev == neg_inf:
                             continue
                         score = float(prev + sub + gap_penalty(int(mask), int(prev_mask), i, j, k))
+                        # Strict '>' keeps the first equal-scoring prev_mask (deterministic).
                         if score > best:
                             best = score
                             best_prev = ps
@@ -306,6 +325,7 @@ def needleman_wunsch_3d(
 
     # --- Termination: best state at (n,m,len3) ---
     end_scores = dp[:, n, m, len3]
+    # np.argmax returns first max index, giving deterministic final-state tie-breaking.
     best_state = int(np.argmax(end_scores))
     best_score = float(end_scores[best_state])
 

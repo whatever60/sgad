@@ -108,6 +108,24 @@ def needleman_wunsch(
     This boundary-based approach keeps free gaps truly terminal with respect to the
     final alignment string.
 
+    Tie-breaking (deterministic behavior)
+    -------------------------------------
+    Multiple alignments can share the same optimal score. This implementation is
+    deterministic because it uses fixed iteration order and strict comparisons.
+
+    During DP updates, predecessor states are scanned in `masks` order and the
+    predecessor is updated only on a strict improvement (`>`). So exact-score ties
+    keep the first predecessor encountered.
+
+    With default `masks = [0, 1, 2]`, predecessor ties prefer:
+        - mask 0 (x, y) over mask 1 (-, y) over mask 2 (x, -).
+
+    In affine-gap terms (open vs extend), ties are resolved by that same predecessor
+    ordering because open/extend is represented by `prev_mask -> cur_mask` transitions.
+
+    At termination, the end state is selected with `np.argmax` over states at (n, m),
+    so final-state ties also prefer earlier masks in the same order.
+
     Args:
         seq1: DNA sequence 1.
         seq2: DNA sequence 2.
@@ -146,7 +164,7 @@ def needleman_wunsch(
         score = 0.0 if gap_free else float(gap_open + gap_extend * (n - 1)) if n > 0 else 0.0
         return a, "-" * n, score
 
-    # Masks (exclude 3 == both gaps)
+    # Masks (exclude 3 == both gaps); Fixed order also defines tie preference.
     masks = np.array([0, 1, 2], dtype=np.int8)
     num_states = masks.size
 
@@ -209,6 +227,7 @@ def needleman_wunsch(
                         continue
 
                     score = float(prev + sub + gap_penalty(int(mask), int(prev_mask), i, j))
+                    # Strict '>' means equal scores keep the earlier prev_mask (deterministic).
                     if score > best:
                         best = score
                         best_prev = ps
@@ -221,6 +240,7 @@ def needleman_wunsch(
 
     # ---- Termination at (n,m) ----
     end_scores = dp[:, n, m]
+    # np.argmax returns first max index, giving deterministic final-state tie-breaking.
     best_state = int(np.argmax(end_scores))
     best_score = float(end_scores[best_state])
 
