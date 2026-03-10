@@ -53,29 +53,71 @@ def needleman_wunsch(
     seq2_right_free: bool = False,
 ) -> tuple[str, str, float]:
     """
-        Pairwise global alignment (Needleman–Wunsch) with affine gaps and free end-gaps,
-        implemented via 2-bit mask states (the 2D analogue of the 3D implementation).
+    Pairwise global alignment (Needleman-Wunsch) with affine gaps and free end-gaps,
+    implemented using 2-bit mask states (the 2D counterpart of the 3D mask approach).
 
-        A DP cell (i, j) means i chars are consumed from seq1 and j from seq2.
+    DP lattice
+    ----------
+    A DP cell (i, j) means we have consumed:
+        - i characters from seq1
+        - j characters from seq2
 
-        Mask states (all-gap mask is excluded):
-            - mask 0 (00): letter/letter
-            - mask 1 (01): gap in seq1, letter in seq2
-            - mask 2 (10): letter in seq1, gap in seq2
+    Scoring
+    -------
+    - Substitution: lookup in `score_matrix` (dict-of-dicts).
+    - Gaps: affine (negative scores):
+          gap_run_score(length=k) = gap_open + gap_extend * (k - 1)
 
-        Affine gap penalties are computed from transitions between previous and current masks.
-        End-free behavior is handled by zeroing gap penalties on corresponding boundaries.
+    Mask state model
+    ----------------
+    Each alignment column emits either a letter or '-' for each sequence. We encode the
+    current column type with a 2-bit mask where a set bit means that sequence is a gap:
+
+        bit0 (value 1): seq1 is a gap in this column
+        bit1 (value 2): seq2 is a gap in this column
+
+    Valid masks are 0..2 and we exclude mask 3 (binary 11) because '--' (all gaps)
+    is an invalid column.
+
+        mask 0 (00): (x, y)   letters from both sequences
+        mask 1 (01): (-, y)   gap in seq1
+        mask 2 (10): (x, -)   gap in seq2
+
+    Each mask implies the DP move (di, dj):
+        di = 0 if (mask & 1) else 1
+        dj = 0 if (mask & 2) else 1
+
+    Affine gaps via mask transitions
+    --------------------------------
+    Affine gaps are handled by comparing the current mask to the previous mask:
+
+    - If seq1 is gapped in current mask:
+        - extend if seq1 was also gapped in previous mask
+        - else open
+    - Likewise for seq2.
+
+    End-free gaps (semiglobal behavior)
+    -----------------------------------
+    End-free gaps are implemented by zeroing the per-column gap penalty when the gap
+    occurs on the corresponding boundary:
+
+        - If seq1_left_free and i == 0 -> gaps in seq1 cost 0 in that column
+        - If seq1_right_free and i == len(seq1) -> gaps in seq1 cost 0 in that column
+        - Similarly for seq2 using j.
+
+    This boundary-based approach keeps free gaps truly terminal with respect to the
+    final alignment string.
 
     Args:
         seq1: DNA sequence 1.
         seq2: DNA sequence 2.
-        score_matrix: Substitution matrix written as dict-of-dicts.
+        score_matrix: Substitution matrix as dict-of-dicts.
         gap_open: Negative score for opening a gap.
         gap_extend: Negative score for extending a gap by 1.
-        seq1_left_free: If True, gaps in seq1 at the left end are free (0 score).
-        seq1_right_free: If True, gaps in seq1 at the right end are free (0 score).
-        seq2_left_free: If True, gaps in seq2 at the left end are free (0 score).
-        seq2_right_free: If True, gaps in seq2 at the right end are free (0 score).
+        seq1_left_free: If True, leading gaps in seq1 are free.
+        seq1_right_free: If True, trailing gaps in seq1 are free.
+        seq2_left_free: If True, leading gaps in seq2 are free.
+        seq2_right_free: If True, trailing gaps in seq2 are free.
 
     Returns:
         (aligned_seq1, aligned_seq2, best_score)
