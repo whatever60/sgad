@@ -524,5 +524,56 @@ if __name__ == "__main__":
                 print(a3)
                 print(flags)
                 raise SystemExit(1)
+    # Extra real-world style case
+    dimer = "CCTGCTACTCTGTTCCCTCAATCTGATAGGTTCC"  # anchored
+    primer1 = "CCTGCTACTCTGTTCCTTCACATC"  # right free only
+    primer2_rc = "CTGTTCCCTCAATCTGATAGGTTCC"  # left free only
+    seq1_left_free = seq1_right_free = False
+    seq2_left_free, seq2_right_free = False, True
+    seq3_left_free, seq3_right_free = True, False
+
+    a1, a2, a3, dp_score = needleman_wunsch_3d(
+        dimer,
+        primer1,
+        primer2_rc,
+        score_matrix=mat,
+        gap_open=gap_open,
+        gap_extend=gap_extend,
+        seq1_left_free=seq1_left_free,
+        seq1_right_free=seq1_right_free,
+        seq2_left_free=seq2_left_free,
+        seq2_right_free=seq2_right_free,
+        seq3_left_free=seq3_left_free,
+        seq3_right_free=seq3_right_free,
+    )
+
+    rescored = score_alignment_3d(
+        a1,
+        a2,
+        a3,
+        score_matrix=mat,
+        gap_open=gap_open,
+        gap_extend=gap_extend,
+        seq1_left_free=seq1_left_free,
+        seq1_right_free=seq1_right_free,
+        seq2_left_free=seq2_left_free,
+        seq2_right_free=seq2_right_free,
+        seq3_left_free=seq3_left_free,
+        seq3_right_free=seq3_right_free,
+    )
+
+    if int(dp_score) != rescored:
+        print(f"[FAIL] real-world case dp={dp_score} rescored={rescored}")
+        print(a1)
+        print(a2)
+        print(a3)
+        raise SystemExit(1)
+
+    print("=== Real-world 3D case ===")
+    print(f"Score (DP): {dp_score}")
+    print(f"Score (rescored): {rescored}")
+    print(a1)
+    print(a2)
+    print(a3)
 
     print("All tests passed!")
