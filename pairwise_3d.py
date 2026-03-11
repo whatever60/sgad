@@ -7,6 +7,64 @@ from itertools import combinations
 import numpy as np
 
 
+def to_ascii(
+    aligned_seq1: str,
+    aligned_seq2: str,
+    aligned_seq3: str,
+    seq1_left_free: bool = False,
+    seq1_right_free: bool = False,
+    seq2_left_free: bool = False,
+    seq2_right_free: bool = False,
+    seq3_left_free: bool = False,
+    seq3_right_free: bool = False,
+    *,
+    line_width: int | None = 120,
+) -> str:
+    """Render a 3-sequence alignment as plain ASCII (optionally wrapped).
+
+    This formatter does not add a match-marker line. If a free-end flag is
+    enabled, corresponding terminal gap runs are displayed as spaces.
+    """
+    if not (len(aligned_seq1) == len(aligned_seq2) == len(aligned_seq3)):
+        raise ValueError("All aligned strings must have the same length.")
+
+    def _display_seq(seq: str, *, left_free: bool, right_free: bool) -> str:
+        """Mask free terminal gap runs by replacing leading/trailing '-' with spaces."""
+        chars = list(seq)
+        if left_free:
+            i = 0
+            while i < len(chars) and chars[i] == "-":
+                chars[i] = " "
+                i += 1
+        if right_free:
+            i = len(chars) - 1
+            while i >= 0 and chars[i] == "-":
+                chars[i] = " "
+                i -= 1
+        return "".join(chars)
+
+    disp1 = _display_seq(
+        aligned_seq1, left_free=seq1_left_free, right_free=seq1_right_free
+    )
+    disp2 = _display_seq(
+        aligned_seq2, left_free=seq2_left_free, right_free=seq2_right_free
+    )
+    disp3 = _display_seq(
+        aligned_seq3, left_free=seq3_left_free, right_free=seq3_right_free
+    )
+
+    if line_width is None or line_width <= 0:
+        return f"{disp1}\n{disp2}\n{disp3}\n"
+
+    blocks: list[str] = []
+    for k in range(0, len(disp1), line_width):
+        blocks.append(disp1[k : k + line_width])
+        blocks.append(disp2[k : k + line_width])
+        blocks.append(disp3[k : k + line_width])
+        blocks.append("")
+    return "\n".join(blocks).rstrip() + "\n"
+
+
 def score_alignment_3d(
     aligned_seq1: str,
     aligned_seq2: str,
@@ -85,9 +143,15 @@ def score_alignment_3d(
 
         return s
 
-    total += add_gap_penalties(aligned_seq1, left_free=seq1_left_free, right_free=seq1_right_free)
-    total += add_gap_penalties(aligned_seq2, left_free=seq2_left_free, right_free=seq2_right_free)
-    total += add_gap_penalties(aligned_seq3, left_free=seq3_left_free, right_free=seq3_right_free)
+    total += add_gap_penalties(
+        aligned_seq1, left_free=seq1_left_free, right_free=seq1_right_free
+    )
+    total += add_gap_penalties(
+        aligned_seq2, left_free=seq2_left_free, right_free=seq2_right_free
+    )
+    total += add_gap_penalties(
+        aligned_seq3, left_free=seq3_left_free, right_free=seq3_right_free
+    )
 
     return total
 
@@ -227,13 +291,21 @@ def needleman_wunsch_3d(
     MASK_SEQ3 = 1 << BIT_SEQ3
 
     # Masks exclude 7 (all gaps)
-    masks = np.array([0, 1, 2, 3, 4, 5, 6], dtype=np.int8)  # Fixed order defines tie preference.
+    masks = np.array(
+        [0, 1, 2, 3, 4, 5, 6], dtype=np.int8
+    )  # Fixed order defines tie preference.
     num_states = masks.size
 
     # Steps implied by mask bits
-    step_i = np.array([0 if ((int(mask) >> BIT_SEQ1) & 1) else 1 for mask in masks], dtype=np.int8)
-    step_j = np.array([0 if ((int(mask) >> BIT_SEQ2) & 1) else 1 for mask in masks], dtype=np.int8)
-    step_k = np.array([0 if ((int(mask) >> BIT_SEQ3) & 1) else 1 for mask in masks], dtype=np.int8)
+    step_i = np.array(
+        [0 if ((int(mask) >> BIT_SEQ1) & 1) else 1 for mask in masks], dtype=np.int8
+    )
+    step_j = np.array(
+        [0 if ((int(mask) >> BIT_SEQ2) & 1) else 1 for mask in masks], dtype=np.int8
+    )
+    step_k = np.array(
+        [0 if ((int(mask) >> BIT_SEQ3) & 1) else 1 for mask in masks], dtype=np.int8
+    )
 
     neg_inf = -math.inf
     dp = np.full((num_states, n + 1, m + 1, len3 + 1), neg_inf, dtype=np.float64)
@@ -310,7 +382,9 @@ def needleman_wunsch_3d(
                         prev = dp[ps, pi, pj, pk]
                         if prev == neg_inf:
                             continue
-                        score = float(prev + sub + gap_penalty(int(mask), int(prev_mask), i, j, k))
+                        score = float(
+                            prev + sub + gap_penalty(int(mask), int(prev_mask), i, j, k)
+                        )
                         # Strict '>' keeps the first equal-scoring prev_mask (deterministic).
                         if score > best:
                             best = score
@@ -364,6 +438,79 @@ def needleman_wunsch_3d(
     )
 
 
+def align_dimer(
+    dimer: str,
+    primer1: str,
+    primer2: str,
+    score_matrix: dict[str, dict[str, int]],
+    gap_open: int,
+    gap_extend: int,
+) -> tuple[str, str, str, float]:
+    """
+    Align a dimer against two primers using fixed dimer-style boundary settings.
+
+    This wrapper reverse-complements `primer2` for alignment and then calls
+    `needleman_wunsch_3d` with:
+
+    - seq1_left_free = seq1_right_free = False
+    - seq2_left_free, seq2_right_free = False, True
+    - seq3_left_free, seq3_right_free = True, False
+    """
+    primer2_rc = primer2.translate(str.maketrans("ACGTacgt", "TGCAtgca"))[::-1]
+
+    seq1_left_free = seq1_right_free = False
+    seq2_left_free, seq2_right_free = False, True
+    seq3_left_free, seq3_right_free = True, False
+
+    a1, a2, a3_rc, score = needleman_wunsch_3d(
+        dimer,
+        primer1,
+        primer2_rc,
+        score_matrix=score_matrix,
+        gap_open=gap_open,
+        gap_extend=gap_extend,
+        seq1_left_free=seq1_left_free,
+        seq1_right_free=seq1_right_free,
+        seq2_left_free=seq2_left_free,
+        seq2_right_free=seq2_right_free,
+        seq3_left_free=seq3_left_free,
+        seq3_right_free=seq3_right_free,
+    )
+    a3_comp = a3_rc.translate(str.maketrans("ACGTacgt", "TGCAtgca"))
+    return a1, a2, a3_comp, score
+
+
+def dimer_aln_to_ascii(
+    aligned_dimer: str,
+    aligned_primer1: str,
+    aligned_primer2: str,
+    *,
+    line_width: int | None = 120,
+) -> str:
+    """Render 3D dimer alignment ASCII with fixed dimer free-end masking settings."""
+    # Complement the third sequence before rendering.
+    aligned_primer2 = aligned_primer2.translate(str.maketrans("ACGTacgt", "TGCAtgca"))
+    res = to_ascii(
+        aligned_dimer,
+        aligned_primer1,
+        aligned_primer2,
+        seq1_left_free=False,
+        seq1_right_free=False,
+        seq2_left_free=False,
+        seq2_right_free=True,
+        seq3_left_free=True,
+        seq3_right_free=False,
+        line_width=line_width,
+    )
+    # Restore complement on each displayed third-sequence line.
+    lines = res.splitlines()
+    if len(lines) < 3:
+        raise ValueError("Expected at least 3 lines in the ASCII output.")
+    for idx in range(2, len(lines), 4):
+        lines[idx] = lines[idx].translate(str.maketrans("ACGTacgt", "TGCAtgca"))
+    return "\n".join(lines) + "\n"
+
+
 def brute_force_best_score_3d(
     seq1: str,
     seq2: str,
@@ -391,7 +538,7 @@ def brute_force_best_score_3d(
     c = seq3.upper()
     n, m, len3 = len(a), len(b), len(c)
 
-    best = -10**18
+    best = -(10**18)
 
     moves = [
         (1, 1, 1),
@@ -403,7 +550,9 @@ def brute_force_best_score_3d(
         (0, 0, 1),
     ]
 
-    def rec(i: int, j: int, k: int, out1: list[str], out2: list[str], out3: list[str]) -> None:
+    def rec(
+        i: int, j: int, k: int, out1: list[str], out2: list[str], out3: list[str]
+    ) -> None:
         nonlocal best
         if i == n and j == m and k == len3:
             s = score_alignment_3d(
@@ -454,31 +603,61 @@ if __name__ == "__main__":
     gap_open, gap_extend = -5, -1
 
     settings = [
-        ("global", dict(
-            seq1_left_free=False, seq1_right_free=False,
-            seq2_left_free=False, seq2_right_free=False,
-            seq3_left_free=False, seq3_right_free=False,
-        )),
-        ("endfree_all", dict(
-            seq1_left_free=True, seq1_right_free=True,
-            seq2_left_free=True, seq2_right_free=True,
-            seq3_left_free=True, seq3_right_free=True,
-        )),
-        ("fit_seq1", dict(
-            seq1_left_free=False, seq1_right_free=False,
-            seq2_left_free=True, seq2_right_free=True,
-            seq3_left_free=True, seq3_right_free=True,
-        )),
-        ("left_free_only_all", dict(
-            seq1_left_free=True, seq1_right_free=False,
-            seq2_left_free=True, seq2_right_free=False,
-            seq3_left_free=True, seq3_right_free=False,
-        )),
-        ("right_free_only_all", dict(
-            seq1_left_free=False, seq1_right_free=True,
-            seq2_left_free=False, seq2_right_free=True,
-            seq3_left_free=False, seq3_right_free=True,
-        )),
+        (
+            "global",
+            dict(
+                seq1_left_free=False,
+                seq1_right_free=False,
+                seq2_left_free=False,
+                seq2_right_free=False,
+                seq3_left_free=False,
+                seq3_right_free=False,
+            ),
+        ),
+        (
+            "endfree_all",
+            dict(
+                seq1_left_free=True,
+                seq1_right_free=True,
+                seq2_left_free=True,
+                seq2_right_free=True,
+                seq3_left_free=True,
+                seq3_right_free=True,
+            ),
+        ),
+        (
+            "fit_seq1",
+            dict(
+                seq1_left_free=False,
+                seq1_right_free=False,
+                seq2_left_free=True,
+                seq2_right_free=True,
+                seq3_left_free=True,
+                seq3_right_free=True,
+            ),
+        ),
+        (
+            "left_free_only_all",
+            dict(
+                seq1_left_free=True,
+                seq1_right_free=False,
+                seq2_left_free=True,
+                seq2_right_free=False,
+                seq3_left_free=True,
+                seq3_right_free=False,
+            ),
+        ),
+        (
+            "right_free_only_all",
+            dict(
+                seq1_left_free=False,
+                seq1_right_free=True,
+                seq2_left_free=False,
+                seq2_right_free=True,
+                seq3_left_free=False,
+                seq3_right_free=True,
+            ),
+        ),
     ]
 
     max_length = 4
@@ -494,7 +673,9 @@ if __name__ == "__main__":
             s3 = "".join(random.choice(alphabet) for _ in range(len3))
 
             a1, a2, a3, dp_score = needleman_wunsch_3d(
-                s1, s2, s3,
+                s1,
+                s2,
+                s3,
                 score_matrix=mat,
                 gap_open=gap_open,
                 gap_extend=gap_extend,
@@ -502,7 +683,9 @@ if __name__ == "__main__":
             )
 
             brute = brute_force_best_score_3d(
-                s1, s2, s3,
+                s1,
+                s2,
+                s3,
                 score_matrix=mat,
                 gap_open=gap_open,
                 gap_extend=gap_extend,
@@ -510,7 +693,9 @@ if __name__ == "__main__":
             )
 
             scored = score_alignment_3d(
-                a1, a2, a3,
+                a1,
+                a2,
+                a3,
                 score_matrix=mat,
                 gap_open=gap_open,
                 gap_extend=gap_extend,
@@ -518,7 +703,9 @@ if __name__ == "__main__":
             )
 
             if int(dp_score) != brute or int(dp_score) != scored:
-                print(f"[FAIL] setting={name} s1={s1!r} s2={s2!r} s3={s3!r} dp={dp_score} brute={brute} scored={scored}")
+                print(
+                    f"[FAIL] setting={name} s1={s1!r} s2={s2!r} s3={s3!r} dp={dp_score} brute={brute} scored={scored}"
+                )
                 print(a1)
                 print(a2)
                 print(a3)

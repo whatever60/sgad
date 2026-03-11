@@ -1,0 +1,876 @@
+{\rtf1\ansi\uc0\deff0{\fonttbl{\f0\fmodern\fprq1\fcharset0 Consolas;}}
+{\colortbl;
+\red85\green85\blue85;
+\red187\green187\blue187;
+\red61\green123\blue123;
+\red156\green101\blue0;
+\red0\green128\blue0;
+\red176\green0\blue64;
+\red102\green102\blue102;
+\red170\green34\blue255;
+\red0\green0\blue255;
+\red203\green63\blue56;
+\red25\green23\blue124;
+\red136\green0\blue0;
+\red118\green118\blue0;
+\red113\green113\blue113;
+\red104\green120\blue34;
+\red186\green33\blue33;
+\red164\green90\blue119;
+\red170\green93\blue31;
+\red0\green0\blue128;
+\red128\green0\blue128;
+\red160\green0\blue0;
+\red0\green132\blue0;
+\red228\green0\blue0;
+\red0\green68\blue221;
+\red255\green0\blue0;
+}
+\f0\sa0
+\fs24
+\dntblnsbdb
+{\cf1   1  }{\cf5\b from}{\cf2  }{\cf9\b __future__}{\cf2  }{\cf5\b import} annotations{\cf2 \par}
+{\cf1   2  }{\cf2 \par}
+{\cf1   3  }{\cf5\b import}{\cf2  }{\cf9\b math}{\cf2 \par}
+{\cf1   4  }{\cf5\b import}{\cf2  }{\cf9\b random}{\cf2 \par}
+{\cf1   5  }{\cf5\b from}{\cf2  }{\cf9\b typing}{\cf2  }{\cf5\b import} Protocol{\cf2 \par}
+{\cf1   6  }{\cf2 \par}
+{\cf1   7  }{\cf5\b import}{\cf2  }{\cf9\b numpy}{\cf2  }{\cf5\b as}{\cf2  }{\cf9\b np}{\cf2 \par}
+{\cf1   8  }{\cf2 \par}
+{\cf1   9  }{\cf2 \par}
+{\cf1  10  }{\cf5\b class}{\cf2  }{\cf9\b ScoreScaleFn}(Protocol):{\cf2 \par}
+{\cf1  11  }{\cf2     }{\cf16\i """Callable signature for per-column score scaling strategies."""}{\cf2 \par}
+{\cf1  12  }{\cf2 \par}
+{\cf1  13  }    {\cf5\b def}{\cf2  }{\cf9 __call__}({\cf2 \par}
+{\cf1  14  }        {\cf5 self},{\cf2 \par}
+{\cf1  15  }        seq1_left_idx: {\cf5 int},{\cf2 \par}
+{\cf1  16  }        seq1_right_idx: {\cf5 int},{\cf2 \par}
+{\cf1  17  }        seq2_left_idx: {\cf5 int},{\cf2 \par}
+{\cf1  18  }        seq2_right_idx: {\cf5 int},{\cf2 \par}
+{\cf1  19  }        {\cf7 *},{\cf2 \par}
+{\cf1  20  }        seq1_left_free: {\cf5 bool},{\cf2 \par}
+{\cf1  21  }        seq1_right_free: {\cf5 bool},{\cf2 \par}
+{\cf1  22  }        seq2_left_free: {\cf5 bool},{\cf2 \par}
+{\cf1  23  }        seq2_right_free: {\cf5 bool},{\cf2 \par}
+{\cf1  24  }    ) {\cf7 -}{\cf7 >} {\cf5 float}: {\cf7 .}{\cf7 .}{\cf7 .}{\cf2 \par}
+{\cf1  25  }{\cf2 \par}
+{\cf1  26  }{\cf2 \par}
+{\cf1  27  }{\cf5\b def}{\cf2  }{\cf9 to_ascii}({\cf2 \par}
+{\cf1  28  }    aligned_a: {\cf5 str},{\cf2 \par}
+{\cf1  29  }    aligned_b: {\cf5 str},{\cf2 \par}
+{\cf1  30  }    score: {\cf5 float},{\cf2 \par}
+{\cf1  31  }    {\cf7 *},{\cf2 \par}
+{\cf1  32  }    line_width: {\cf5 int} {\cf7 |} {\cf5\b None} {\cf7 =} {\cf7 120},{\cf2 \par}
+{\cf1  33  }) {\cf7 -}{\cf7 >} {\cf5 str}:{\cf2 \par}
+{\cf1  34  }{\cf2     }{\cf16\i """Render a pairwise alignment as a 3-line ASCII view (optionally wrapped)."""}{\cf2 \par}
+{\cf1  35  }    {\cf5\b if} {\cf5 len}(aligned_a) {\cf7 !=} {\cf5 len}(aligned_b):{\cf2 \par}
+{\cf1  36  }        {\cf5\b raise} {\cf10\b ValueError}({\cf16 "}{\cf16 Aligned strings must have the same length.}{\cf16 "}){\cf2 \par}
+{\cf1  37  }{\cf2 \par}
+{\cf1  38  }    mid {\cf7 =} []{\cf2 \par}
+{\cf1  39  }    {\cf5\b for} ca, cb {\cf8\b in} {\cf5 zip}(aligned_a, aligned_b, strict{\cf7 =}{\cf5\b True}):{\cf2 \par}
+{\cf1  40  }        {\cf5\b if} ca {\cf7 ==} {\cf16 "}{\cf16 -}{\cf16 "} {\cf8\b or} cb {\cf7 ==} {\cf16 "}{\cf16 -}{\cf16 "}:{\cf2 \par}
+{\cf1  41  }            mid{\cf7 .}append({\cf16 "}{\cf16  }{\cf16 "}){\cf2 \par}
+{\cf1  42  }        {\cf5\b elif} ca {\cf7 ==} cb:{\cf2 \par}
+{\cf1  43  }            mid{\cf7 .}append({\cf16 "}{\cf16 |}{\cf16 "}){\cf2 \par}
+{\cf1  44  }        {\cf5\b else}:{\cf2 \par}
+{\cf1  45  }            mid{\cf7 .}append({\cf16 "}{\cf16 .}{\cf16 "}){\cf2 \par}
+{\cf1  46  }    mid_line {\cf7 =} {\cf16 "}{\cf16 "}{\cf7 .}join(mid){\cf2 \par}
+{\cf1  47  }{\cf2 \par}
+{\cf1  48  }    header {\cf7 =} {\cf16 f}{\cf16 "}{\cf16 Score: }{\cf17\b \{}score{\cf17\b \}}{\cf16 "}{\cf2 \par}
+{\cf1  49  }    {\cf5\b if} line_width {\cf8\b is} {\cf5\b None} {\cf8\b or} line_width {\cf7 <}{\cf7 =} {\cf7 0}:{\cf2 \par}
+{\cf1  50  }        {\cf5\b return} {\cf16 f}{\cf16 "}{\cf17\b \{}header{\cf17\b \}}{\cf18\b \\n}{\cf17\b \{}aligned_a{\cf17\b \}}{\cf18\b \\n}{\cf17\b \{}mid_line{\cf17\b \}}{\cf18\b \\n}{\cf17\b \{}aligned_b{\cf17\b \}}{\cf18\b \\n}{\cf16 "}{\cf2 \par}
+{\cf1  51  }{\cf2 \par}
+{\cf1  52  }    blocks {\cf7 =} [header]{\cf2 \par}
+{\cf1  53  }    {\cf5\b for} k {\cf8\b in} {\cf5 range}({\cf7 0}, {\cf5 len}(aligned_a), line_width):{\cf2 \par}
+{\cf1  54  }        blocks{\cf7 .}append(aligned_a[k : k {\cf7 +} line_width]){\cf2 \par}
+{\cf1  55  }        blocks{\cf7 .}append(mid_line[k : k {\cf7 +} line_width]){\cf2 \par}
+{\cf1  56  }        blocks{\cf7 .}append(aligned_b[k : k {\cf7 +} line_width]){\cf2 \par}
+{\cf1  57  }        blocks{\cf7 .}append({\cf16 "}{\cf16 "}){\cf2 \par}
+{\cf1  58  }    {\cf5\b return} {\cf16 "}{\cf18\b \\n}{\cf16 "}{\cf7 .}join(blocks){\cf7 .}rstrip() {\cf7 +} {\cf16 "}{\cf18\b \\n}{\cf16 "}{\cf2 \par}
+{\cf1  59  }{\cf2 \par}
+{\cf1  60  }{\cf2 \par}
+{\cf1  61  }{\cf5\b def}{\cf2  }{\cf9 score_scale_factor}({\cf2 \par}
+{\cf1  62  }    seq1_left_idx: {\cf5 int},{\cf2 \par}
+{\cf1  63  }    seq1_right_idx: {\cf5 int},{\cf2 \par}
+{\cf1  64  }    seq2_left_idx: {\cf5 int},{\cf2 \par}
+{\cf1  65  }    seq2_right_idx: {\cf5 int},{\cf2 \par}
+{\cf1  66  }    {\cf7 *},{\cf2 \par}
+{\cf1  67  }    seq1_left_free: {\cf5 bool},{\cf2 \par}
+{\cf1  68  }    seq1_right_free: {\cf5 bool},{\cf2 \par}
+{\cf1  69  }    seq2_left_free: {\cf5 bool},{\cf2 \par}
+{\cf1  70  }    seq2_right_free: {\cf5 bool},{\cf2 \par}
+{\cf1  71  }) {\cf7 -}{\cf7 >} {\cf5 float}:{\cf2 \par}
+{\cf1  72  }{\cf2     }{\cf16\i """\par}
+{\cf1  73  }{\cf16\i     Compute the score scaling multiplier for a single alignment column.\par}
+{\cf1  74  }{\cf16\i \par}
+{\cf1  75  }{\cf16\i     Each of the four sequence-end contributions is:\par}
+{\cf1  76  }{\cf16\i         1.0                           if the corresponding *_free flag is True\par}
+{\cf1  77  }{\cf16\i         30 / (distance_from_end + 1)  otherwise\par}
+{\cf1  78  }{\cf16\i \par}
+{\cf1  79  }{\cf16\i     The final factor is the sum of enabled contributions.\par}
+{\cf1  80  }{\cf16\i \par}
+{\cf1  81  }{\cf16\i     Args:\par}
+{\cf1  82  }{\cf16\i         seq1_left_idx: Distance from the seq1 left end or seq1 gap boundary.\par}
+{\cf1  83  }{\cf16\i         seq1_right_idx: Distance from the seq1 right end or seq1 gap boundary.\par}
+{\cf1  84  }{\cf16\i         seq2_left_idx: Distance from the seq2 left end or seq2 gap boundary.\par}
+{\cf1  85  }{\cf16\i         seq2_right_idx: Distance from the seq2 right end or seq2 gap boundary.\par}
+{\cf1  86  }{\cf16\i         seq1_left_free: Whether the seq1 left-end contribution is neutralized.\par}
+{\cf1  87  }{\cf16\i         seq1_right_free: Whether the seq1 right-end contribution is neutralized.\par}
+{\cf1  88  }{\cf16\i         seq2_left_free: Whether the seq2 left-end contribution is neutralized.\par}
+{\cf1  89  }{\cf16\i         seq2_right_free: Whether the seq2 right-end contribution is neutralized.\par}
+{\cf1  90  }{\cf16\i \par}
+{\cf1  91  }{\cf16\i     Returns:\par}
+{\cf1  92  }{\cf16\i         Multiplicative score scale for the current alignment column.\par}
+{\cf1  93  }{\cf16\i     """}{\cf2 \par}
+{\cf1  94  }    penalties {\cf7 =} []{\cf2 \par}
+{\cf1  95  }    {\cf5\b if} seq1_left_free:{\cf2 \par}
+{\cf1  96  }        penalties{\cf7 .}append({\cf7 1.0} {\cf7 /} (seq1_left_idx {\cf7 +} {\cf7 1})){\cf2 \par}
+{\cf1  97  }    {\cf5\b if} seq1_right_free:{\cf2 \par}
+{\cf1  98  }        penalties{\cf7 .}append({\cf7 1.0} {\cf7 /} (seq1_right_idx {\cf7 +} {\cf7 1})){\cf2 \par}
+{\cf1  99  }    {\cf5\b if} seq2_left_free:{\cf2 \par}
+{\cf1 100  }        penalties{\cf7 .}append({\cf7 1.0} {\cf7 /} (seq2_left_idx {\cf7 +} {\cf7 1})){\cf2 \par}
+{\cf1 101  }    {\cf5\b if} seq2_right_free:{\cf2 \par}
+{\cf1 102  }        penalties{\cf7 .}append({\cf7 1.0} {\cf7 /} (seq2_right_idx {\cf7 +} {\cf7 1})){\cf2 \par}
+{\cf1 103  }    {\cf5\b return} {\cf5 sum}(penalties) {\cf5\b if} penalties {\cf5\b else} {\cf7 1.0}{\cf2 \par}
+{\cf1 104  }{\cf2 \par}
+{\cf1 105  }{\cf2 \par}
+{\cf1 106  }{\cf5\b def}{\cf2  }{\cf9 no_score_scale_factor}({\cf2 \par}
+{\cf1 107  }    seq1_left_idx: {\cf5 int},{\cf2 \par}
+{\cf1 108  }    seq1_right_idx: {\cf5 int},{\cf2 \par}
+{\cf1 109  }    seq2_left_idx: {\cf5 int},{\cf2 \par}
+{\cf1 110  }    seq2_right_idx: {\cf5 int},{\cf2 \par}
+{\cf1 111  }    {\cf7 *},{\cf2 \par}
+{\cf1 112  }    seq1_left_free: {\cf5 bool},{\cf2 \par}
+{\cf1 113  }    seq1_right_free: {\cf5 bool},{\cf2 \par}
+{\cf1 114  }    seq2_left_free: {\cf5 bool},{\cf2 \par}
+{\cf1 115  }    seq2_right_free: {\cf5 bool},{\cf2 \par}
+{\cf1 116  }) {\cf7 -}{\cf7 >} {\cf5 float}:{\cf2 \par}
+{\cf1 117  }{\cf2     }{\cf16\i """Disable score scaling by returning 1.0 for every column."""}{\cf2 \par}
+{\cf1 118  }    _ {\cf7 =} ({\cf2 \par}
+{\cf1 119  }        seq1_left_idx,{\cf2 \par}
+{\cf1 120  }        seq1_right_idx,{\cf2 \par}
+{\cf1 121  }        seq2_left_idx,{\cf2 \par}
+{\cf1 122  }        seq2_right_idx,{\cf2 \par}
+{\cf1 123  }        seq1_left_free,{\cf2 \par}
+{\cf1 124  }        seq1_right_free,{\cf2 \par}
+{\cf1 125  }        seq2_left_free,{\cf2 \par}
+{\cf1 126  }        seq2_right_free,{\cf2 \par}
+{\cf1 127  }    ){\cf2 \par}
+{\cf1 128  }    {\cf5\b return} {\cf7 1.0}{\cf2 \par}
+{\cf1 129  }{\cf2 \par}
+{\cf1 130  }{\cf2 \par}
+{\cf1 131  }{\cf5\b def}{\cf2  }{\cf9 column_score_scale_factor}({\cf2 \par}
+{\cf1 132  }    mask: {\cf5 int},{\cf2 \par}
+{\cf1 133  }    i_: {\cf5 int},{\cf2 \par}
+{\cf1 134  }    j_: {\cf5 int},{\cf2 \par}
+{\cf1 135  }    {\cf7 *},{\cf2 \par}
+{\cf1 136  }    n: {\cf5 int},{\cf2 \par}
+{\cf1 137  }    m: {\cf5 int},{\cf2 \par}
+{\cf1 138  }    seq1_left_free: {\cf5 bool},{\cf2 \par}
+{\cf1 139  }    seq1_right_free: {\cf5 bool},{\cf2 \par}
+{\cf1 140  }    seq2_left_free: {\cf5 bool},{\cf2 \par}
+{\cf1 141  }    seq2_right_free: {\cf5 bool},{\cf2 \par}
+{\cf1 142  }    score_scale_fn: ScoreScaleFn,{\cf2 \par}
+{\cf1 143  }) {\cf7 -}{\cf7 >} {\cf5 float}:{\cf2 \par}
+{\cf1 144  }{\cf2     }{\cf16\i """\par}
+{\cf1 145  }{\cf16\i     Compute score scaling for a DP column from the selected scaling strategy.\par}
+{\cf1 146  }{\cf16\i \par}
+{\cf1 147  }{\cf16\i     Mask semantics:\par}
+{\cf1 148  }{\cf16\i         0: (x, y)  -> letters from both sequences\par}
+{\cf1 149  }{\cf16\i         1: (-, y)  -> gap in seq1\par}
+{\cf1 150  }{\cf16\i         2: (x, -)  -> gap in seq2\par}
+{\cf1 151  }{\cf16\i \par}
+{\cf1 152  }{\cf16\i     For substitution columns, nucleotide positions are used directly.\par}
+{\cf1 153  }{\cf16\i     For gap columns, the gapped sequence uses the gap boundary (Option A),\par}
+{\cf1 154  }{\cf16\i     while the non-gapped sequence uses the actual nucleotide position.\par}
+{\cf1 155  }{\cf16\i \par}
+{\cf1 156  }{\cf16\i     Args:\par}
+{\cf1 157  }{\cf16\i         mask: Column mask (0, 1, or 2).\par}
+{\cf1 158  }{\cf16\i         i_: DP row after emitting the current column.\par}
+{\cf1 159  }{\cf16\i         j_: DP column after emitting the current column.\par}
+{\cf1 160  }{\cf16\i         n: Length of seq1.\par}
+{\cf1 161  }{\cf16\i         m: Length of seq2.\par}
+{\cf1 162  }{\cf16\i         seq1_left_free: Whether the seq1 left-end contribution is neutralized.\par}
+{\cf1 163  }{\cf16\i         seq1_right_free: Whether the seq1 right-end contribution is neutralized.\par}
+{\cf1 164  }{\cf16\i         seq2_left_free: Whether the seq2 left-end contribution is neutralized.\par}
+{\cf1 165  }{\cf16\i         seq2_right_free: Whether the seq2 right-end contribution is neutralized.\par}
+{\cf1 166  }{\cf16\i \par}
+{\cf1 167  }{\cf16\i     Returns:\par}
+{\cf1 168  }{\cf16\i         Multiplicative score scale for the current alignment column.\par}
+{\cf1 169  }{\cf16\i     """}{\cf2 \par}
+{\cf1 170  }    {\cf5\b if} mask {\cf7 ==} {\cf7 0}:{\cf2 \par}
+{\cf1 171  }        seq1_left_idx {\cf7 =} i_ {\cf7 -} {\cf7 1}{\cf2 \par}
+{\cf1 172  }        seq1_right_idx {\cf7 =} n {\cf7 -} i_{\cf2 \par}
+{\cf1 173  }        seq2_left_idx {\cf7 =} j_ {\cf7 -} {\cf7 1}{\cf2 \par}
+{\cf1 174  }        seq2_right_idx {\cf7 =} m {\cf7 -} j_{\cf2 \par}
+{\cf1 175  }    {\cf5\b elif} mask {\cf7 ==} {\cf7 1}:{\cf2 \par}
+{\cf1 176  }        seq1_left_idx {\cf7 =} i_{\cf2 \par}
+{\cf1 177  }        seq1_right_idx {\cf7 =} n {\cf7 -} i_{\cf2 \par}
+{\cf1 178  }        seq2_left_idx {\cf7 =} j_ {\cf7 -} {\cf7 1}{\cf2 \par}
+{\cf1 179  }        seq2_right_idx {\cf7 =} m {\cf7 -} j_{\cf2 \par}
+{\cf1 180  }    {\cf5\b elif} mask {\cf7 ==} {\cf7 2}:{\cf2 \par}
+{\cf1 181  }        seq1_left_idx {\cf7 =} i_ {\cf7 -} {\cf7 1}{\cf2 \par}
+{\cf1 182  }        seq1_right_idx {\cf7 =} n {\cf7 -} i_{\cf2 \par}
+{\cf1 183  }        seq2_left_idx {\cf7 =} j_{\cf2 \par}
+{\cf1 184  }        seq2_right_idx {\cf7 =} m {\cf7 -} j_{\cf2 \par}
+{\cf1 185  }    {\cf5\b else}:{\cf2 \par}
+{\cf1 186  }        {\cf5\b raise} {\cf10\b ValueError}({\cf16 f}{\cf16 "}{\cf16 Unsupported mask: }{\cf17\b \{}mask{\cf17\b \}}{\cf16 "}){\cf2 \par}
+{\cf1 187  }{\cf2 \par}
+{\cf1 188  }    {\cf5\b return} score_scale_fn({\cf2 \par}
+{\cf1 189  }        seq1_left_idx,{\cf2 \par}
+{\cf1 190  }        seq1_right_idx,{\cf2 \par}
+{\cf1 191  }        seq2_left_idx,{\cf2 \par}
+{\cf1 192  }        seq2_right_idx,{\cf2 \par}
+{\cf1 193  }        seq1_left_free{\cf7 =}seq1_left_free,{\cf2 \par}
+{\cf1 194  }        seq1_right_free{\cf7 =}seq1_right_free,{\cf2 \par}
+{\cf1 195  }        seq2_left_free{\cf7 =}seq2_left_free,{\cf2 \par}
+{\cf1 196  }        seq2_right_free{\cf7 =}seq2_right_free,{\cf2 \par}
+{\cf1 197  }    ){\cf2 \par}
+{\cf1 198  }{\cf2 \par}
+{\cf1 199  }{\cf2 \par}
+{\cf1 200  }{\cf5\b def}{\cf2  }{\cf9 needleman_wunsch}({\cf2 \par}
+{\cf1 201  }    seq1: {\cf5 str},{\cf2 \par}
+{\cf1 202  }    seq2: {\cf5 str},{\cf2 \par}
+{\cf1 203  }    {\cf7 *},{\cf2 \par}
+{\cf1 204  }    score_matrix: {\cf5 dict}[{\cf5 str}, {\cf5 dict}[{\cf5 str}, {\cf5 int} {\cf7 |} {\cf5 float}]],{\cf2 \par}
+{\cf1 205  }    gap_open: {\cf5 int} {\cf7 =} {\cf7 -}{\cf7 5},{\cf2 \par}
+{\cf1 206  }    gap_extend: {\cf5 int} {\cf7 =} {\cf7 -}{\cf7 1},{\cf2 \par}
+{\cf1 207  }    seq1_left_free: {\cf5 bool} {\cf7 =} {\cf5\b False},{\cf2 \par}
+{\cf1 208  }    seq1_right_free: {\cf5 bool} {\cf7 =} {\cf5\b False},{\cf2 \par}
+{\cf1 209  }    seq2_left_free: {\cf5 bool} {\cf7 =} {\cf5\b False},{\cf2 \par}
+{\cf1 210  }    seq2_right_free: {\cf5 bool} {\cf7 =} {\cf5\b False},{\cf2 \par}
+{\cf1 211  }    score_scale_fn: ScoreScaleFn {\cf7 =} score_scale_factor,{\cf2 \par}
+{\cf1 212  }) {\cf7 -}{\cf7 >} {\cf5 tuple}[{\cf5 str}, {\cf5 str}, {\cf5 float}]:{\cf2 \par}
+{\cf1 213  }{\cf2     }{\cf16\i """\par}
+{\cf1 214  }{\cf16\i     Pairwise global alignment (Needleman-Wunsch) with affine gaps and free end-gaps,\par}
+{\cf1 215  }{\cf16\i     implemented using 2-bit mask states (the 2D counterpart of the 3D mask approach).\par}
+{\cf1 216  }{\cf16\i \par}
+{\cf1 217  }{\cf16\i     DP lattice\par}
+{\cf1 218  }{\cf16\i     ----------\par}
+{\cf1 219  }{\cf16\i     A DP cell (i, j) means we have consumed:\par}
+{\cf1 220  }{\cf16\i         - i characters from seq1\par}
+{\cf1 221  }{\cf16\i         - j characters from seq2\par}
+{\cf1 222  }{\cf16\i \par}
+{\cf1 223  }{\cf16\i     Scoring\par}
+{\cf1 224  }{\cf16\i     -------\par}
+{\cf1 225  }{\cf16\i         - Substitution: lookup in `score_matrix` (dict-of-dicts), multiplied by a\par}
+{\cf1 226  }{\cf16\i             score scale returned by `score_scale_fn`.\par}
+{\cf1 227  }{\cf16\i     - Gaps: affine (negative scores), also scaled per column by the same\par}
+{\cf1 228  }{\cf16\i             score scale:\par}
+{\cf1 229  }{\cf16\i           gap_run_score(length=k) = sum(base_gap_col_score * factor_for_that_column)\par}
+{\cf1 230  }{\cf16\i \par}
+{\cf1 231  }{\cf16\i     Mask state model\par}
+{\cf1 232  }{\cf16\i     ----------------\par}
+{\cf1 233  }{\cf16\i     Each alignment column emits either a letter or '-' for each sequence. We encode the\par}
+{\cf1 234  }{\cf16\i     current column type with a 2-bit mask where a set bit means that sequence is a gap:\par}
+{\cf1 235  }{\cf16\i \par}
+{\cf1 236  }{\cf16\i         bit0 (value 1): seq1 is a gap in this column\par}
+{\cf1 237  }{\cf16\i         bit1 (value 2): seq2 is a gap in this column\par}
+{\cf1 238  }{\cf16\i \par}
+{\cf1 239  }{\cf16\i     Valid masks are 0..2 and we exclude mask 3 (binary 11) because '--' (all gaps)\par}
+{\cf1 240  }{\cf16\i     is an invalid column.\par}
+{\cf1 241  }{\cf16\i \par}
+{\cf1 242  }{\cf16\i         mask 0 (00): (x, y)   letters from both sequences\par}
+{\cf1 243  }{\cf16\i         mask 1 (01): (-, y)   gap in seq1\par}
+{\cf1 244  }{\cf16\i         mask 2 (10): (x, -)   gap in seq2\par}
+{\cf1 245  }{\cf16\i \par}
+{\cf1 246  }{\cf16\i     Each mask implies the DP move (di, dj):\par}
+{\cf1 247  }{\cf16\i         di = 0 if (mask & 1) else 1\par}
+{\cf1 248  }{\cf16\i         dj = 0 if (mask & 2) else 1\par}
+{\cf1 249  }{\cf16\i \par}
+{\cf1 250  }{\cf16\i     Affine gaps via mask transitions\par}
+{\cf1 251  }{\cf16\i     --------------------------------\par}
+{\cf1 252  }{\cf16\i     Affine gaps are handled by comparing the current mask to the previous mask:\par}
+{\cf1 253  }{\cf16\i \par}
+{\cf1 254  }{\cf16\i     - If seq1 is gapped in current mask:\par}
+{\cf1 255  }{\cf16\i         - extend if seq1 was also gapped in previous mask\par}
+{\cf1 256  }{\cf16\i         - else open\par}
+{\cf1 257  }{\cf16\i     - Likewise for seq2.\par}
+{\cf1 258  }{\cf16\i \par}
+{\cf1 259  }{\cf16\i     End-free gaps (semiglobal behavior)\par}
+{\cf1 260  }{\cf16\i     -----------------------------------\par}
+{\cf1 261  }{\cf16\i     End-free gaps are implemented by zeroing the per-column gap penalty when the gap\par}
+{\cf1 262  }{\cf16\i     occurs on the corresponding boundary:\par}
+{\cf1 263  }{\cf16\i \par}
+{\cf1 264  }{\cf16\i         - If seq1_left_free and i == 0 -> gaps in seq1 cost 0 in that column\par}
+{\cf1 265  }{\cf16\i         - If seq1_right_free and i == len(seq1) -> gaps in seq1 cost 0 in that column\par}
+{\cf1 266  }{\cf16\i         - Similarly for seq2 using j.\par}
+{\cf1 267  }{\cf16\i \par}
+{\cf1 268  }{\cf16\i     This boundary-based approach keeps free gaps truly terminal with respect to the\par}
+{\cf1 269  }{\cf16\i     final alignment string.\par}
+{\cf1 270  }{\cf16\i \par}
+{\cf1 271  }{\cf16\i     Deterministic tie-breaking\par}
+{\cf1 272  }{\cf16\i     --------------------------\par}
+{\cf1 273  }{\cf16\i     When multiple transitions have the same score, this implementation is deterministic:\par}
+{\cf1 274  }{\cf16\i         - Mask order is fixed as [0, 1, 2].\par}
+{\cf1 275  }{\cf16\i         - Previous-state ties keep the first state encountered (strict '>' update).\par}
+{\cf1 276  }{\cf16\i         - Final state ties at (n, m) use `np.argmax`, which returns the first maximum.\par}
+{\cf1 277  }{\cf16\i     This guarantees reproducible traceback choices across runs.\par}
+{\cf1 278  }{\cf16\i \par}
+{\cf1 279  }{\cf16\i     Args:\par}
+{\cf1 280  }{\cf16\i         seq1: DNA sequence 1.\par}
+{\cf1 281  }{\cf16\i         seq2: DNA sequence 2.\par}
+{\cf1 282  }{\cf16\i         score_matrix: Substitution matrix as dict-of-dicts.\par}
+{\cf1 283  }{\cf16\i         gap_open: Negative score for opening a gap.\par}
+{\cf1 284  }{\cf16\i         gap_extend: Negative score for extending a gap by 1.\par}
+{\cf1 285  }{\cf16\i         seq1_left_free: If True, leading gaps in seq1 are free and the seq1-left\par}
+{\cf1 286  }{\cf16\i             positional contribution is neutralized to 1.\par}
+{\cf1 287  }{\cf16\i         seq1_right_free: If True, trailing gaps in seq1 are free and the seq1-right\par}
+{\cf1 288  }{\cf16\i             positional contribution is neutralized to 1.\par}
+{\cf1 289  }{\cf16\i         seq2_left_free: If True, leading gaps in seq2 are free and the seq2-left\par}
+{\cf1 290  }{\cf16\i             positional contribution is neutralized to 1.\par}
+{\cf1 291  }{\cf16\i         seq2_right_free: If True, trailing gaps in seq2 are free and the seq2-right\par}
+{\cf1 292  }{\cf16\i             positional contribution is neutralized to 1.\par}
+{\cf1 293  }{\cf16\i         score_scale_fn: Callable that returns a multiplicative score scale per\par}
+{\cf1 294  }{\cf16\i             alignment column. Use `no_score_scale_factor` to disable scaling.\par}
+{\cf1 295  }{\cf16\i \par}
+{\cf1 296  }{\cf16\i     Returns:\par}
+{\cf1 297  }{\cf16\i         (aligned_seq1, aligned_seq2, best_score)\par}
+{\cf1 298  }{\cf16\i     """}{\cf2 \par}
+{\cf1 299  }    a {\cf7 =} seq1{\cf7 .}upper(){\cf2 \par}
+{\cf1 300  }    b {\cf7 =} seq2{\cf7 .}upper(){\cf2 \par}
+{\cf1 301  }    n {\cf7 =} {\cf5 len}(a){\cf2 \par}
+{\cf1 302  }    m {\cf7 =} {\cf5 len}(b){\cf2 \par}
+{\cf1 303  }{\cf2 \par}
+{\cf1 304  }    BIT_SEQ1 {\cf7 =} {\cf7 0}{\cf2 \par}
+{\cf1 305  }    BIT_SEQ2 {\cf7 =} {\cf7 1}{\cf2 \par}
+{\cf1 306  }    MASK_SEQ1 {\cf7 =} {\cf7 1} {\cf7 <<} BIT_SEQ1{\cf2 \par}
+{\cf1 307  }    MASK_SEQ2 {\cf7 =} {\cf7 1} {\cf7 <<} BIT_SEQ2{\cf2 \par}
+{\cf1 308  }{\cf2 \par}
+{\cf1 309  }    {\cf3\i # ---- Empty-sequence edge cases ----}{\cf2 \par}
+{\cf1 310  }    {\cf5\b if} n {\cf7 ==} {\cf7 0} {\cf8\b and} m {\cf7 ==} {\cf7 0}:{\cf2 \par}
+{\cf1 311  }        {\cf5\b return} {\cf16 "}{\cf16 "}, {\cf16 "}{\cf16 "}, {\cf7 0.0}{\cf2 \par}
+{\cf1 312  }    {\cf5\b if} n {\cf7 ==} {\cf7 0}:{\cf2 \par}
+{\cf1 313  }        aligned_a {\cf7 =} {\cf16 "}{\cf16 -}{\cf16 "} {\cf7 *} m{\cf2 \par}
+{\cf1 314  }        aligned_b {\cf7 =} b{\cf2 \par}
+{\cf1 315  }        score {\cf7 =} score_alignment({\cf2 \par}
+{\cf1 316  }            aligned_a,{\cf2 \par}
+{\cf1 317  }            aligned_b,{\cf2 \par}
+{\cf1 318  }            score_matrix{\cf7 =}score_matrix,{\cf2 \par}
+{\cf1 319  }            gap_open{\cf7 =}gap_open,{\cf2 \par}
+{\cf1 320  }            gap_extend{\cf7 =}gap_extend,{\cf2 \par}
+{\cf1 321  }            seq1_left_free{\cf7 =}seq1_left_free,{\cf2 \par}
+{\cf1 322  }            seq1_right_free{\cf7 =}seq1_right_free,{\cf2 \par}
+{\cf1 323  }            seq2_left_free{\cf7 =}seq2_left_free,{\cf2 \par}
+{\cf1 324  }            seq2_right_free{\cf7 =}seq2_right_free,{\cf2 \par}
+{\cf1 325  }            score_scale_fn{\cf7 =}score_scale_fn,{\cf2 \par}
+{\cf1 326  }        ){\cf2 \par}
+{\cf1 327  }        {\cf5\b return} aligned_a, aligned_b, score{\cf2 \par}
+{\cf1 328  }    {\cf5\b if} m {\cf7 ==} {\cf7 0}:{\cf2 \par}
+{\cf1 329  }        aligned_a {\cf7 =} a{\cf2 \par}
+{\cf1 330  }        aligned_b {\cf7 =} {\cf16 "}{\cf16 -}{\cf16 "} {\cf7 *} n{\cf2 \par}
+{\cf1 331  }        score {\cf7 =} score_alignment({\cf2 \par}
+{\cf1 332  }            aligned_a,{\cf2 \par}
+{\cf1 333  }            aligned_b,{\cf2 \par}
+{\cf1 334  }            score_matrix{\cf7 =}score_matrix,{\cf2 \par}
+{\cf1 335  }            gap_open{\cf7 =}gap_open,{\cf2 \par}
+{\cf1 336  }            gap_extend{\cf7 =}gap_extend,{\cf2 \par}
+{\cf1 337  }            seq1_left_free{\cf7 =}seq1_left_free,{\cf2 \par}
+{\cf1 338  }            seq1_right_free{\cf7 =}seq1_right_free,{\cf2 \par}
+{\cf1 339  }            seq2_left_free{\cf7 =}seq2_left_free,{\cf2 \par}
+{\cf1 340  }            seq2_right_free{\cf7 =}seq2_right_free,{\cf2 \par}
+{\cf1 341  }            score_scale_fn{\cf7 =}score_scale_fn,{\cf2 \par}
+{\cf1 342  }        ){\cf2 \par}
+{\cf1 343  }        {\cf5\b return} aligned_a, aligned_b, score{\cf2 \par}
+{\cf1 344  }{\cf2 \par}
+{\cf1 345  }    {\cf3\i # Masks (exclude 3 == both gaps); Fixed order also defines tie preference.}{\cf2 \par}
+{\cf1 346  }    masks {\cf7 =} np{\cf7 .}array([{\cf7 0}, {\cf7 1}, {\cf7 2}], dtype{\cf7 =}np{\cf7 .}int8){\cf2 \par}
+{\cf1 347  }    num_states {\cf7 =} masks{\cf7 .}size{\cf2 \par}
+{\cf1 348  }{\cf2 \par}
+{\cf1 349  }    {\cf3\i # Step deltas implied by mask bits}{\cf2 \par}
+{\cf1 350  }    step_i {\cf7 =} np{\cf7 .}array({\cf2 \par}
+{\cf1 351  }        [{\cf7 0} {\cf5\b if} (({\cf5 int}(mask) {\cf7 >>} BIT_SEQ1) {\cf7 &} {\cf7 1}) {\cf5\b else} {\cf7 1} {\cf5\b for} mask {\cf8\b in} masks], dtype{\cf7 =}np{\cf7 .}int8{\cf2 \par}
+{\cf1 352  }    ){\cf2 \par}
+{\cf1 353  }    step_j {\cf7 =} np{\cf7 .}array({\cf2 \par}
+{\cf1 354  }        [{\cf7 0} {\cf5\b if} (({\cf5 int}(mask) {\cf7 >>} BIT_SEQ2) {\cf7 &} {\cf7 1}) {\cf5\b else} {\cf7 1} {\cf5\b for} mask {\cf8\b in} masks], dtype{\cf7 =}np{\cf7 .}int8{\cf2 \par}
+{\cf1 355  }    ){\cf2 \par}
+{\cf1 356  }{\cf2 \par}
+{\cf1 357  }    neg_inf {\cf7 =} {\cf7 -}math{\cf7 .}inf{\cf2 \par}
+{\cf1 358  }{\cf2 \par}
+{\cf1 359  }    dp {\cf7 =} np{\cf7 .}full((num_states, n {\cf7 +} {\cf7 1}, m {\cf7 +} {\cf7 1}), neg_inf, dtype{\cf7 =}np{\cf7 .}float64){\cf2 \par}
+{\cf1 360  }    ptr_state {\cf7 =} np{\cf7 .}full((num_states, n {\cf7 +} {\cf7 1}, m {\cf7 +} {\cf7 1}), {\cf7 -}{\cf7 1}, dtype{\cf7 =}np{\cf7 .}int8){\cf2 \par}
+{\cf1 361  }    ptr_di {\cf7 =} np{\cf7 .}zeros((num_states, n {\cf7 +} {\cf7 1}, m {\cf7 +} {\cf7 1}), dtype{\cf7 =}np{\cf7 .}int8){\cf2 \par}
+{\cf1 362  }    ptr_dj {\cf7 =} np{\cf7 .}zeros((num_states, n {\cf7 +} {\cf7 1}, m {\cf7 +} {\cf7 1}), dtype{\cf7 =}np{\cf7 .}int8){\cf2 \par}
+{\cf1 363  }{\cf2 \par}
+{\cf1 364  }    {\cf3\i # Start at (0,0) with mask 0 as benign prior state.}{\cf2 \par}
+{\cf1 365  }    dp[{\cf7 0}, {\cf7 0}, {\cf7 0}] {\cf7 =} {\cf7 0.0}{\cf2 \par}
+{\cf1 366  }    ptr_state[{\cf7 0}, {\cf7 0}, {\cf7 0}] {\cf7 =} {\cf7 0}{\cf2 \par}
+{\cf1 367  }{\cf2 \par}
+{\cf1 368  }    {\cf5\b def}{\cf2  }{\cf9 gap_penalty}(cur_mask: {\cf5 int}, prev_mask: {\cf5 int}, i_: {\cf5 int}, j_: {\cf5 int}) {\cf7 -}{\cf7 >} {\cf5 float}:{\cf2 \par}
+{\cf1 369  }{\cf2         }{\cf16\i """Return affine gap cost for the current column mask at DP cell (i_, j_)."""}{\cf2 \par}
+{\cf1 370  }        pen {\cf7 =} {\cf7 0.0}{\cf2 \par}
+{\cf1 371  }        factor {\cf7 =} column_score_scale_factor({\cf2 \par}
+{\cf1 372  }            cur_mask,{\cf2 \par}
+{\cf1 373  }            i_,{\cf2 \par}
+{\cf1 374  }            j_,{\cf2 \par}
+{\cf1 375  }            n{\cf7 =}n,{\cf2 \par}
+{\cf1 376  }            m{\cf7 =}m,{\cf2 \par}
+{\cf1 377  }            seq1_left_free{\cf7 =}seq1_left_free,{\cf2 \par}
+{\cf1 378  }            seq1_right_free{\cf7 =}seq1_right_free,{\cf2 \par}
+{\cf1 379  }            seq2_left_free{\cf7 =}seq2_left_free,{\cf2 \par}
+{\cf1 380  }            seq2_right_free{\cf7 =}seq2_right_free,{\cf2 \par}
+{\cf1 381  }            score_scale_fn{\cf7 =}score_scale_fn,{\cf2 \par}
+{\cf1 382  }        ){\cf2 \par}
+{\cf1 383  }{\cf2 \par}
+{\cf1 384  }        {\cf3\i # seq1 is gapped in mask bit0}{\cf2 \par}
+{\cf1 385  }        {\cf5\b if} cur_mask {\cf7 &} MASK_SEQ1:{\cf2 \par}
+{\cf1 386  }            {\cf5\b if} {\cf8\b not} ((i_ {\cf7 ==} {\cf7 0} {\cf8\b and} seq1_left_free) {\cf8\b or} (i_ {\cf7 ==} n {\cf8\b and} seq1_right_free)):{\cf2 \par}
+{\cf1 387  }                base_gap {\cf7 =} gap_extend {\cf5\b if} (prev_mask {\cf7 &} MASK_SEQ1) {\cf5\b else} gap_open{\cf2 \par}
+{\cf1 388  }                pen {\cf7 +}{\cf7 =} {\cf5 float}(base_gap) {\cf7 *} factor{\cf2 \par}
+{\cf1 389  }{\cf2 \par}
+{\cf1 390  }        {\cf3\i # seq2 is gapped in mask bit1}{\cf2 \par}
+{\cf1 391  }        {\cf5\b if} cur_mask {\cf7 &} MASK_SEQ2:{\cf2 \par}
+{\cf1 392  }            {\cf5\b if} {\cf8\b not} ((j_ {\cf7 ==} {\cf7 0} {\cf8\b and} seq2_left_free) {\cf8\b or} (j_ {\cf7 ==} m {\cf8\b and} seq2_right_free)):{\cf2 \par}
+{\cf1 393  }                base_gap {\cf7 =} gap_extend {\cf5\b if} (prev_mask {\cf7 &} MASK_SEQ2) {\cf5\b else} gap_open{\cf2 \par}
+{\cf1 394  }                pen {\cf7 +}{\cf7 =} {\cf5 float}(base_gap) {\cf7 *} factor{\cf2 \par}
+{\cf1 395  }{\cf2 \par}
+{\cf1 396  }        {\cf5\b return} pen{\cf2 \par}
+{\cf1 397  }{\cf2 \par}
+{\cf1 398  }    {\cf5\b def}{\cf2  }{\cf9 col_sub_score}(mask: {\cf5 int}, i_: {\cf5 int}, j_: {\cf5 int}) {\cf7 -}{\cf7 >} {\cf5 float}:{\cf2 \par}
+{\cf1 399  }{\cf2         }{\cf16\i """Return substitution score for this column, or 0.0 for any gap-containing mask."""}{\cf2 \par}
+{\cf1 400  }        {\cf5\b if} mask {\cf7 !=} {\cf7 0}:{\cf2 \par}
+{\cf1 401  }            {\cf5\b return} {\cf7 0.0}{\cf2 \par}
+{\cf1 402  }        factor {\cf7 =} column_score_scale_factor({\cf2 \par}
+{\cf1 403  }            mask,{\cf2 \par}
+{\cf1 404  }            i_,{\cf2 \par}
+{\cf1 405  }            j_,{\cf2 \par}
+{\cf1 406  }            n{\cf7 =}n,{\cf2 \par}
+{\cf1 407  }            m{\cf7 =}m,{\cf2 \par}
+{\cf1 408  }            seq1_left_free{\cf7 =}seq1_left_free,{\cf2 \par}
+{\cf1 409  }            seq1_right_free{\cf7 =}seq1_right_free,{\cf2 \par}
+{\cf1 410  }            seq2_left_free{\cf7 =}seq2_left_free,{\cf2 \par}
+{\cf1 411  }            seq2_right_free{\cf7 =}seq2_right_free,{\cf2 \par}
+{\cf1 412  }            score_scale_fn{\cf7 =}score_scale_fn,{\cf2 \par}
+{\cf1 413  }        ){\cf2 \par}
+{\cf1 414  }        {\cf5\b return} {\cf5 float}(score_matrix[a[i_ {\cf7 -} {\cf7 1}]][b[j_ {\cf7 -} {\cf7 1}]]) {\cf7 *} factor{\cf2 \par}
+{\cf1 415  }{\cf2 \par}
+{\cf1 416  }    {\cf3\i # ---- DP fill ----}{\cf2 \par}
+{\cf1 417  }    {\cf5\b for} i {\cf8\b in} {\cf5 range}({\cf7 0}, n {\cf7 +} {\cf7 1}):{\cf2 \par}
+{\cf1 418  }        {\cf5\b for} j {\cf8\b in} {\cf5 range}({\cf7 0}, m {\cf7 +} {\cf7 1}):{\cf2 \par}
+{\cf1 419  }            {\cf5\b if} i {\cf7 ==} {\cf7 0} {\cf8\b and} j {\cf7 ==} {\cf7 0}:{\cf2 \par}
+{\cf1 420  }                {\cf5\b continue}{\cf2 \par}
+{\cf1 421  }{\cf2 \par}
+{\cf1 422  }            {\cf5\b for} s, mask {\cf8\b in} {\cf5 enumerate}(masks):{\cf2 \par}
+{\cf1 423  }                di {\cf7 =} {\cf5 int}(step_i[s]){\cf2 \par}
+{\cf1 424  }                dj {\cf7 =} {\cf5 int}(step_j[s]){\cf2 \par}
+{\cf1 425  }                {\cf5\b if} i {\cf7 <} di {\cf8\b or} j {\cf7 <} dj:{\cf2 \par}
+{\cf1 426  }                    {\cf5\b continue}{\cf2 \par}
+{\cf1 427  }{\cf2 \par}
+{\cf1 428  }                pi, pj {\cf7 =} i {\cf7 -} di, j {\cf7 -} dj{\cf2 \par}
+{\cf1 429  }                sub {\cf7 =} col_sub_score({\cf5 int}(mask), i, j){\cf2 \par}
+{\cf1 430  }{\cf2 \par}
+{\cf1 431  }                best {\cf7 =} neg_inf{\cf2 \par}
+{\cf1 432  }                best_prev {\cf7 =} {\cf7 -}{\cf7 1}{\cf2 \par}
+{\cf1 433  }{\cf2 \par}
+{\cf1 434  }                {\cf5\b for} ps, prev_mask {\cf8\b in} {\cf5 enumerate}(masks):{\cf2 \par}
+{\cf1 435  }                    prev {\cf7 =} dp[ps, pi, pj]{\cf2 \par}
+{\cf1 436  }                    {\cf5\b if} prev {\cf7 ==} neg_inf:{\cf2 \par}
+{\cf1 437  }                        {\cf5\b continue}{\cf2 \par}
+{\cf1 438  }{\cf2 \par}
+{\cf1 439  }                    score {\cf7 =} {\cf5 float}({\cf2 \par}
+{\cf1 440  }                        prev {\cf7 +} sub {\cf7 +} gap_penalty({\cf5 int}(mask), {\cf5 int}(prev_mask), i, j){\cf2 \par}
+{\cf1 441  }                    ){\cf2 \par}
+{\cf1 442  }                    {\cf3\i # Strict '>' means equal scores keep the earlier prev_mask (deterministic).}{\cf2 \par}
+{\cf1 443  }                    {\cf5\b if} score {\cf7 >} best:{\cf2 \par}
+{\cf1 444  }                        best {\cf7 =} score{\cf2 \par}
+{\cf1 445  }                        best_prev {\cf7 =} ps{\cf2 \par}
+{\cf1 446  }{\cf2 \par}
+{\cf1 447  }                {\cf5\b if} best_prev {\cf7 >}{\cf7 =} {\cf7 0}:{\cf2 \par}
+{\cf1 448  }                    dp[s, i, j] {\cf7 =} best{\cf2 \par}
+{\cf1 449  }                    ptr_state[s, i, j] {\cf7 =} best_prev{\cf2 \par}
+{\cf1 450  }                    ptr_di[s, i, j] {\cf7 =} di{\cf2 \par}
+{\cf1 451  }                    ptr_dj[s, i, j] {\cf7 =} dj{\cf2 \par}
+{\cf1 452  }{\cf2 \par}
+{\cf1 453  }    {\cf3\i # ---- Termination at (n,m) ----}{\cf2 \par}
+{\cf1 454  }    end_scores {\cf7 =} dp[:, n, m]{\cf2 \par}
+{\cf1 455  }    {\cf3\i # np.argmax returns first max index, giving deterministic final-state tie-breaking.}{\cf2 \par}
+{\cf1 456  }    best_state {\cf7 =} {\cf5 int}(np{\cf7 .}argmax(end_scores)){\cf2 \par}
+{\cf1 457  }    best_score {\cf7 =} {\cf5 float}(end_scores[best_state]){\cf2 \par}
+{\cf1 458  }{\cf2 \par}
+{\cf1 459  }    {\cf3\i # ---- Backtrack ----}{\cf2 \par}
+{\cf1 460  }    i, j, state {\cf7 =} n, m, best_state{\cf2 \par}
+{\cf1 461  }    out_a: {\cf5 list}[{\cf5 str}] {\cf7 =} []{\cf2 \par}
+{\cf1 462  }    out_b: {\cf5 list}[{\cf5 str}] {\cf7 =} []{\cf2 \par}
+{\cf1 463  }{\cf2 \par}
+{\cf1 464  }    {\cf5\b while} i {\cf7 >} {\cf7 0} {\cf8\b or} j {\cf7 >} {\cf7 0}:{\cf2 \par}
+{\cf1 465  }        mask {\cf7 =} {\cf5 int}(masks[state]){\cf2 \par}
+{\cf1 466  }        out_a{\cf7 .}append({\cf16 "}{\cf16 -}{\cf16 "} {\cf5\b if} (mask {\cf7 &} MASK_SEQ1) {\cf5\b else} a[i {\cf7 -} {\cf7 1}]){\cf2 \par}
+{\cf1 467  }        out_b{\cf7 .}append({\cf16 "}{\cf16 -}{\cf16 "} {\cf5\b if} (mask {\cf7 &} MASK_SEQ2) {\cf5\b else} b[j {\cf7 -} {\cf7 1}]){\cf2 \par}
+{\cf1 468  }{\cf2 \par}
+{\cf1 469  }        prev_state {\cf7 =} {\cf5 int}(ptr_state[state, i, j]){\cf2 \par}
+{\cf1 470  }        di {\cf7 =} {\cf5 int}(ptr_di[state, i, j]){\cf2 \par}
+{\cf1 471  }        dj {\cf7 =} {\cf5 int}(ptr_dj[state, i, j]){\cf2 \par}
+{\cf1 472  }{\cf2 \par}
+{\cf1 473  }        {\cf5\b if} prev_state {\cf7 <} {\cf7 0}:{\cf2 \par}
+{\cf1 474  }            {\cf5\b raise} {\cf10\b RuntimeError}({\cf16 "}{\cf16 Unset pointer encountered during traceback.}{\cf16 "}){\cf2 \par}
+{\cf1 475  }{\cf2 \par}
+{\cf1 476  }        i {\cf7 -}{\cf7 =} di{\cf2 \par}
+{\cf1 477  }        j {\cf7 -}{\cf7 =} dj{\cf2 \par}
+{\cf1 478  }        state {\cf7 =} prev_state{\cf2 \par}
+{\cf1 479  }{\cf2 \par}
+{\cf1 480  }    aligned_a {\cf7 =} {\cf16 "}{\cf16 "}{\cf7 .}join({\cf5 reversed}(out_a)){\cf2 \par}
+{\cf1 481  }    aligned_b {\cf7 =} {\cf16 "}{\cf16 "}{\cf7 .}join({\cf5 reversed}(out_b)){\cf2 \par}
+{\cf1 482  }{\cf2 \par}
+{\cf1 483  }    {\cf5\b return} aligned_a, aligned_b, {\cf5 float}(best_score){\cf2 \par}
+{\cf1 484  }{\cf2 \par}
+{\cf1 485  }{\cf2 \par}
+{\cf1 486  }{\cf5\b def}{\cf2  }{\cf9 score_alignment}({\cf2 \par}
+{\cf1 487  }    aligned_seq1: {\cf5 str},{\cf2 \par}
+{\cf1 488  }    aligned_seq2: {\cf5 str},{\cf2 \par}
+{\cf1 489  }    {\cf7 *},{\cf2 \par}
+{\cf1 490  }    score_matrix: {\cf5 dict}[{\cf5 str}, {\cf5 dict}[{\cf5 str}, {\cf5 int} {\cf7 |} {\cf5 float}]],{\cf2 \par}
+{\cf1 491  }    gap_open: {\cf5 int},{\cf2 \par}
+{\cf1 492  }    gap_extend: {\cf5 int},{\cf2 \par}
+{\cf1 493  }    seq1_left_free: {\cf5 bool},{\cf2 \par}
+{\cf1 494  }    seq1_right_free: {\cf5 bool},{\cf2 \par}
+{\cf1 495  }    seq2_left_free: {\cf5 bool},{\cf2 \par}
+{\cf1 496  }    seq2_right_free: {\cf5 bool},{\cf2 \par}
+{\cf1 497  }    score_scale_fn: ScoreScaleFn {\cf7 =} score_scale_factor,{\cf2 \par}
+{\cf1 498  }) {\cf7 -}{\cf7 >} {\cf5 float}:{\cf2 \par}
+{\cf1 499  }{\cf2     }{\cf16\i """\par}
+{\cf1 500  }{\cf16\i     Score a fully specified alignment under:\par}
+{\cf1 501  }{\cf16\i       - substitution matrix\par}
+{\cf1 502  }{\cf16\i       - affine gaps (gap_open + gap_extend*(k-1), with negative scores)\par}
+{\cf1 503  }{\cf16\i       - optional free terminal gaps on each sequence end\par}
+{\cf1 504  }{\cf16\i     - configurable score scaling applied to every alignment column\par}
+{\cf1 505  }{\cf16\i \par}
+{\cf1 506  }{\cf16\i     Args:\par}
+{\cf1 507  }{\cf16\i         aligned_seq1: Alignment string for seq1 (includes '-').\par}
+{\cf1 508  }{\cf16\i         aligned_seq2: Alignment string for seq2 (includes '-').\par}
+{\cf1 509  }{\cf16\i         score_matrix: Substitution matrix as dict-of-dicts.\par}
+{\cf1 510  }{\cf16\i         gap_open: Negative score for opening a gap.\par}
+{\cf1 511  }{\cf16\i         gap_extend: Negative score for extending a gap.\par}
+{\cf1 512  }{\cf16\i         seq1_left_free/seq1_right_free: Free-end flags for gaps in seq1 and neutralizers\par}
+{\cf1 513  }{\cf16\i             for the seq1 positional contributions.\par}
+{\cf1 514  }{\cf16\i         seq2_left_free/seq2_right_free: Free-end flags for gaps in seq2 and neutralizers\par}
+{\cf1 515  }{\cf16\i             for the seq2 positional contributions.\par}
+{\cf1 516  }{\cf16\i         score_scale_fn: Callable that returns a multiplicative score scale per column.\par}
+{\cf1 517  }{\cf16\i \par}
+{\cf1 518  }{\cf16\i     Returns:\par}
+{\cf1 519  }{\cf16\i         Total alignment score as a float.\par}
+{\cf1 520  }{\cf16\i     """}{\cf2 \par}
+{\cf1 521  }    {\cf5\b if} {\cf5 len}(aligned_seq1) {\cf7 !=} {\cf5 len}(aligned_seq2):{\cf2 \par}
+{\cf1 522  }        {\cf5\b raise} {\cf10\b ValueError}({\cf16 "}{\cf16 Alignment strings must have same length.}{\cf16 "}){\cf2 \par}
+{\cf1 523  }{\cf2 \par}
+{\cf1 524  }    ungapped_seq1 {\cf7 =} aligned_seq1{\cf7 .}replace({\cf16 "}{\cf16 -}{\cf16 "}, {\cf16 "}{\cf16 "}){\cf2 \par}
+{\cf1 525  }    ungapped_seq2 {\cf7 =} aligned_seq2{\cf7 .}replace({\cf16 "}{\cf16 -}{\cf16 "}, {\cf16 "}{\cf16 "}){\cf2 \par}
+{\cf1 526  }    n {\cf7 =} {\cf5 len}(ungapped_seq1){\cf2 \par}
+{\cf1 527  }    m {\cf7 =} {\cf5 len}(ungapped_seq2){\cf2 \par}
+{\cf1 528  }{\cf2 \par}
+{\cf1 529  }    {\cf5\b def}{\cf2  }{\cf9 prev_is_gap_in_seq1}(col_idx: {\cf5 int}) {\cf7 -}{\cf7 >} {\cf5 bool}:{\cf2 \par}
+{\cf1 530  }{\cf2         }{\cf16\i """Check whether the previous alignment column contains a gap in seq1 only."""}{\cf2 \par}
+{\cf1 531  }        {\cf5\b return} ({\cf2 \par}
+{\cf1 532  }            col_idx {\cf7 >} {\cf7 0}{\cf2 \par}
+{\cf1 533  }            {\cf8\b and} aligned_seq1[col_idx {\cf7 -} {\cf7 1}] {\cf7 ==} {\cf16 "}{\cf16 -}{\cf16 "}{\cf2 \par}
+{\cf1 534  }            {\cf8\b and} aligned_seq2[col_idx {\cf7 -} {\cf7 1}] {\cf7 !=} {\cf16 "}{\cf16 -}{\cf16 "}{\cf2 \par}
+{\cf1 535  }        ){\cf2 \par}
+{\cf1 536  }{\cf2 \par}
+{\cf1 537  }    {\cf5\b def}{\cf2  }{\cf9 prev_is_gap_in_seq2}(col_idx: {\cf5 int}) {\cf7 -}{\cf7 >} {\cf5 bool}:{\cf2 \par}
+{\cf1 538  }{\cf2         }{\cf16\i """Check whether the previous alignment column contains a gap in seq2 only."""}{\cf2 \par}
+{\cf1 539  }        {\cf5\b return} ({\cf2 \par}
+{\cf1 540  }            col_idx {\cf7 >} {\cf7 0}{\cf2 \par}
+{\cf1 541  }            {\cf8\b and} aligned_seq2[col_idx {\cf7 -} {\cf7 1}] {\cf7 ==} {\cf16 "}{\cf16 -}{\cf16 "}{\cf2 \par}
+{\cf1 542  }            {\cf8\b and} aligned_seq1[col_idx {\cf7 -} {\cf7 1}] {\cf7 !=} {\cf16 "}{\cf16 -}{\cf16 "}{\cf2 \par}
+{\cf1 543  }        ){\cf2 \par}
+{\cf1 544  }{\cf2 \par}
+{\cf1 545  }    total {\cf7 =} {\cf7 0.0}{\cf2 \par}
+{\cf1 546  }    seq1_pos {\cf7 =} {\cf7 0}{\cf2 \par}
+{\cf1 547  }    seq2_pos {\cf7 =} {\cf7 0}{\cf2 \par}
+{\cf1 548  }{\cf2 \par}
+{\cf1 549  }    {\cf5\b for} col_idx, (c1, c2) {\cf8\b in} {\cf5 enumerate}({\cf5 zip}(aligned_seq1, aligned_seq2, strict{\cf7 =}{\cf5\b True})):{\cf2 \par}
+{\cf1 550  }        {\cf5\b if} c1 {\cf7 !=} {\cf16 "}{\cf16 -}{\cf16 "} {\cf8\b and} c2 {\cf7 !=} {\cf16 "}{\cf16 -}{\cf16 "}:{\cf2 \par}
+{\cf1 551  }            factor {\cf7 =} score_scale_fn({\cf2 \par}
+{\cf1 552  }                seq1_pos,{\cf2 \par}
+{\cf1 553  }                n {\cf7 -} seq1_pos {\cf7 -} {\cf7 1},{\cf2 \par}
+{\cf1 554  }                seq2_pos,{\cf2 \par}
+{\cf1 555  }                m {\cf7 -} seq2_pos {\cf7 -} {\cf7 1},{\cf2 \par}
+{\cf1 556  }                seq1_left_free{\cf7 =}seq1_left_free,{\cf2 \par}
+{\cf1 557  }                seq1_right_free{\cf7 =}seq1_right_free,{\cf2 \par}
+{\cf1 558  }                seq2_left_free{\cf7 =}seq2_left_free,{\cf2 \par}
+{\cf1 559  }                seq2_right_free{\cf7 =}seq2_right_free,{\cf2 \par}
+{\cf1 560  }            ){\cf2 \par}
+{\cf1 561  }            total {\cf7 +}{\cf7 =} {\cf5 float}(score_matrix[c1][c2]) {\cf7 *} factor{\cf2 \par}
+{\cf1 562  }            seq1_pos {\cf7 +}{\cf7 =} {\cf7 1}{\cf2 \par}
+{\cf1 563  }            seq2_pos {\cf7 +}{\cf7 =} {\cf7 1}{\cf2 \par}
+{\cf1 564  }            {\cf5\b continue}{\cf2 \par}
+{\cf1 565  }{\cf2 \par}
+{\cf1 566  }        {\cf5\b if} c1 {\cf7 ==} {\cf16 "}{\cf16 -}{\cf16 "} {\cf8\b and} c2 {\cf7 ==} {\cf16 "}{\cf16 -}{\cf16 "}:{\cf2 \par}
+{\cf1 567  }            {\cf5\b raise} {\cf10\b ValueError}({\cf16 "}{\cf16 Invalid alignment column: both gaps.}{\cf16 "}){\cf2 \par}
+{\cf1 568  }{\cf2 \par}
+{\cf1 569  }        {\cf5\b if} c1 {\cf7 ==} {\cf16 "}{\cf16 -}{\cf16 "}:{\cf2 \par}
+{\cf1 570  }            free {\cf7 =} (seq1_pos {\cf7 ==} {\cf7 0} {\cf8\b and} seq1_left_free) {\cf8\b or} ({\cf2 \par}
+{\cf1 571  }                seq1_pos {\cf7 ==} n {\cf8\b and} seq1_right_free{\cf2 \par}
+{\cf1 572  }            ){\cf2 \par}
+{\cf1 573  }            {\cf5\b if} {\cf8\b not} free:{\cf2 \par}
+{\cf1 574  }                factor {\cf7 =} score_scale_fn({\cf2 \par}
+{\cf1 575  }                    seq1_pos,{\cf2 \par}
+{\cf1 576  }                    n {\cf7 -} seq1_pos,{\cf2 \par}
+{\cf1 577  }                    seq2_pos,{\cf2 \par}
+{\cf1 578  }                    m {\cf7 -} seq2_pos {\cf7 -} {\cf7 1},{\cf2 \par}
+{\cf1 579  }                    seq1_left_free{\cf7 =}seq1_left_free,{\cf2 \par}
+{\cf1 580  }                    seq1_right_free{\cf7 =}seq1_right_free,{\cf2 \par}
+{\cf1 581  }                    seq2_left_free{\cf7 =}seq2_left_free,{\cf2 \par}
+{\cf1 582  }                    seq2_right_free{\cf7 =}seq2_right_free,{\cf2 \par}
+{\cf1 583  }                ){\cf2 \par}
+{\cf1 584  }                base_gap {\cf7 =} gap_extend {\cf5\b if} prev_is_gap_in_seq1(col_idx) {\cf5\b else} gap_open{\cf2 \par}
+{\cf1 585  }                total {\cf7 +}{\cf7 =} {\cf5 float}(base_gap) {\cf7 *} factor{\cf2 \par}
+{\cf1 586  }            seq2_pos {\cf7 +}{\cf7 =} {\cf7 1}{\cf2 \par}
+{\cf1 587  }        {\cf5\b else}:{\cf2 \par}
+{\cf1 588  }            free {\cf7 =} (seq2_pos {\cf7 ==} {\cf7 0} {\cf8\b and} seq2_left_free) {\cf8\b or} ({\cf2 \par}
+{\cf1 589  }                seq2_pos {\cf7 ==} m {\cf8\b and} seq2_right_free{\cf2 \par}
+{\cf1 590  }            ){\cf2 \par}
+{\cf1 591  }            {\cf5\b if} {\cf8\b not} free:{\cf2 \par}
+{\cf1 592  }                factor {\cf7 =} score_scale_fn({\cf2 \par}
+{\cf1 593  }                    seq1_pos,{\cf2 \par}
+{\cf1 594  }                    n {\cf7 -} seq1_pos {\cf7 -} {\cf7 1},{\cf2 \par}
+{\cf1 595  }                    seq2_pos,{\cf2 \par}
+{\cf1 596  }                    m {\cf7 -} seq2_pos,{\cf2 \par}
+{\cf1 597  }                    seq1_left_free{\cf7 =}seq1_left_free,{\cf2 \par}
+{\cf1 598  }                    seq1_right_free{\cf7 =}seq1_right_free,{\cf2 \par}
+{\cf1 599  }                    seq2_left_free{\cf7 =}seq2_left_free,{\cf2 \par}
+{\cf1 600  }                    seq2_right_free{\cf7 =}seq2_right_free,{\cf2 \par}
+{\cf1 601  }                ){\cf2 \par}
+{\cf1 602  }                base_gap {\cf7 =} gap_extend {\cf5\b if} prev_is_gap_in_seq2(col_idx) {\cf5\b else} gap_open{\cf2 \par}
+{\cf1 603  }                total {\cf7 +}{\cf7 =} {\cf5 float}(base_gap) {\cf7 *} factor{\cf2 \par}
+{\cf1 604  }            seq1_pos {\cf7 +}{\cf7 =} {\cf7 1}{\cf2 \par}
+{\cf1 605  }{\cf2 \par}
+{\cf1 606  }    {\cf5\b return} total{\cf2 \par}
+{\cf1 607  }{\cf2 \par}
+{\cf1 608  }{\cf2 \par}
+{\cf1 609  }{\cf5\b def}{\cf2  }{\cf9 brute_force_best_score}({\cf2 \par}
+{\cf1 610  }    seq1: {\cf5 str},{\cf2 \par}
+{\cf1 611  }    seq2: {\cf5 str},{\cf2 \par}
+{\cf1 612  }    {\cf7 *},{\cf2 \par}
+{\cf1 613  }    score_matrix: {\cf5 dict}[{\cf5 str}, {\cf5 dict}[{\cf5 str}, {\cf5 int} {\cf7 |} {\cf5 float}]],{\cf2 \par}
+{\cf1 614  }    gap_open: {\cf5 int},{\cf2 \par}
+{\cf1 615  }    gap_extend: {\cf5 int},{\cf2 \par}
+{\cf1 616  }    seq1_left_free: {\cf5 bool},{\cf2 \par}
+{\cf1 617  }    seq1_right_free: {\cf5 bool},{\cf2 \par}
+{\cf1 618  }    seq2_left_free: {\cf5 bool},{\cf2 \par}
+{\cf1 619  }    seq2_right_free: {\cf5 bool},{\cf2 \par}
+{\cf1 620  }    score_scale_fn: ScoreScaleFn {\cf7 =} score_scale_factor,{\cf2 \par}
+{\cf1 621  }) {\cf7 -}{\cf7 >} {\cf5 float}:{\cf2 \par}
+{\cf1 622  }{\cf2     }{\cf16\i """\par}
+{\cf1 623  }{\cf16\i     Brute-force best score by enumerating all global alignments (paths to (n,m)).\par}
+{\cf1 624  }{\cf16\i \par}
+{\cf1 625  }{\cf16\i     This is exponential; it is only practical for tiny sequences (e.g., <= 4).\par}
+{\cf1 626  }{\cf16\i \par}
+{\cf1 627  }{\cf16\i     Args:\par}
+{\cf1 628  }{\cf16\i         seq1, seq2: Sequences to align.\par}
+{\cf1 629  }{\cf16\i         score_matrix: Substitution scoring as dict-of-dicts.\par}
+{\cf1 630  }{\cf16\i         gap_open, gap_extend: Affine gap scores (negative penalties).\par}
+{\cf1 631  }{\cf16\i         seq1_left_free/seq1_right_free/seq2_left_free/seq2_right_free: Free-end flags.\par}
+{\cf1 632  }{\cf16\i         score_scale_fn: Callable that returns a multiplicative score scale per column.\par}
+{\cf1 633  }{\cf16\i \par}
+{\cf1 634  }{\cf16\i     Returns:\par}
+{\cf1 635  }{\cf16\i         Maximum achievable alignment score (float).\par}
+{\cf1 636  }{\cf16\i     """}{\cf2 \par}
+{\cf1 637  }    a {\cf7 =} seq1{\cf7 .}upper(){\cf2 \par}
+{\cf1 638  }    b {\cf7 =} seq2{\cf7 .}upper(){\cf2 \par}
+{\cf1 639  }    n {\cf7 =} {\cf5 len}(a){\cf2 \par}
+{\cf1 640  }    m {\cf7 =} {\cf5 len}(b){\cf2 \par}
+{\cf1 641  }{\cf2 \par}
+{\cf1 642  }    best {\cf7 =} {\cf7 -}math{\cf7 .}inf{\cf2 \par}
+{\cf1 643  }{\cf2 \par}
+{\cf1 644  }    {\cf5\b def}{\cf2  }{\cf9 rec}(i: {\cf5 int}, j: {\cf5 int}, out_a: {\cf5 list}[{\cf5 str}], out_b: {\cf5 list}[{\cf5 str}]) {\cf7 -}{\cf7 >} {\cf5\b None}:{\cf2 \par}
+{\cf1 645  }{\cf2         }{\cf16\i """Enumerate all alignment paths from DP position (i, j) and update best score."""}{\cf2 \par}
+{\cf1 646  }        {\cf5\b nonlocal} best{\cf2 \par}
+{\cf1 647  }{\cf2 \par}
+{\cf1 648  }        {\cf5\b if} i {\cf7 ==} n {\cf8\b and} j {\cf7 ==} m:{\cf2 \par}
+{\cf1 649  }            s {\cf7 =} score_alignment({\cf2 \par}
+{\cf1 650  }                {\cf16 "}{\cf16 "}{\cf7 .}join(out_a),{\cf2 \par}
+{\cf1 651  }                {\cf16 "}{\cf16 "}{\cf7 .}join(out_b),{\cf2 \par}
+{\cf1 652  }                score_matrix{\cf7 =}score_matrix,{\cf2 \par}
+{\cf1 653  }                gap_open{\cf7 =}gap_open,{\cf2 \par}
+{\cf1 654  }                gap_extend{\cf7 =}gap_extend,{\cf2 \par}
+{\cf1 655  }                seq1_left_free{\cf7 =}seq1_left_free,{\cf2 \par}
+{\cf1 656  }                seq1_right_free{\cf7 =}seq1_right_free,{\cf2 \par}
+{\cf1 657  }                seq2_left_free{\cf7 =}seq2_left_free,{\cf2 \par}
+{\cf1 658  }                seq2_right_free{\cf7 =}seq2_right_free,{\cf2 \par}
+{\cf1 659  }                score_scale_fn{\cf7 =}score_scale_fn,{\cf2 \par}
+{\cf1 660  }            ){\cf2 \par}
+{\cf1 661  }            best {\cf7 =} {\cf5 max}(best, s){\cf2 \par}
+{\cf1 662  }            {\cf5\b return}{\cf2 \par}
+{\cf1 663  }{\cf2 \par}
+{\cf1 664  }        {\cf3\i # Diagonal: align a[i] with b[j]}{\cf2 \par}
+{\cf1 665  }        {\cf5\b if} i {\cf7 <} n {\cf8\b and} j {\cf7 <} m:{\cf2 \par}
+{\cf1 666  }            out_a{\cf7 .}append(a[i]){\cf2 \par}
+{\cf1 667  }            out_b{\cf7 .}append(b[j]){\cf2 \par}
+{\cf1 668  }            rec(i {\cf7 +} {\cf7 1}, j {\cf7 +} {\cf7 1}, out_a, out_b){\cf2 \par}
+{\cf1 669  }            out_a{\cf7 .}pop(){\cf2 \par}
+{\cf1 670  }            out_b{\cf7 .}pop(){\cf2 \par}
+{\cf1 671  }{\cf2 \par}
+{\cf1 672  }        {\cf3\i # Down: align a[i] with '-': gap in seq2}{\cf2 \par}
+{\cf1 673  }        {\cf5\b if} i {\cf7 <} n:{\cf2 \par}
+{\cf1 674  }            out_a{\cf7 .}append(a[i]){\cf2 \par}
+{\cf1 675  }            out_b{\cf7 .}append({\cf16 "}{\cf16 -}{\cf16 "}){\cf2 \par}
+{\cf1 676  }            rec(i {\cf7 +} {\cf7 1}, j, out_a, out_b){\cf2 \par}
+{\cf1 677  }            out_a{\cf7 .}pop(){\cf2 \par}
+{\cf1 678  }            out_b{\cf7 .}pop(){\cf2 \par}
+{\cf1 679  }{\cf2 \par}
+{\cf1 680  }        {\cf3\i # Right: align '-' with b[j]: gap in seq1}{\cf2 \par}
+{\cf1 681  }        {\cf5\b if} j {\cf7 <} m:{\cf2 \par}
+{\cf1 682  }            out_a{\cf7 .}append({\cf16 "}{\cf16 -}{\cf16 "}){\cf2 \par}
+{\cf1 683  }            out_b{\cf7 .}append(b[j]){\cf2 \par}
+{\cf1 684  }            rec(i, j {\cf7 +} {\cf7 1}, out_a, out_b){\cf2 \par}
+{\cf1 685  }            out_a{\cf7 .}pop(){\cf2 \par}
+{\cf1 686  }            out_b{\cf7 .}pop(){\cf2 \par}
+{\cf1 687  }{\cf2 \par}
+{\cf1 688  }    rec({\cf7 0}, {\cf7 0}, [], []){\cf2 \par}
+{\cf1 689  }    {\cf5\b return} {\cf5 float}(best){\cf2 \par}
+{\cf1 690  }{\cf2 \par}
+{\cf1 691  }{\cf2 \par}
+{\cf1 692  }{\cf5\b if} {\cf11 __name__} {\cf7 ==} {\cf16 "}{\cf16 __main__}{\cf16 "}:{\cf2 \par}
+{\cf1 693  }    {\cf3\i # ---- Demo runs ----}{\cf2 \par}
+{\cf1 694  }    s1 {\cf7 =} {\cf16 "}{\cf16 ACGTTGAC}{\cf16 "}{\cf2 \par}
+{\cf1 695  }    s2 {\cf7 =} {\cf16 "}{\cf16 ACTTGACC}{\cf16 "}{\cf2 \par}
+{\cf1 696  }{\cf2 \par}
+{\cf1 697  }    mat: {\cf5 dict}[{\cf5 str}, {\cf5 dict}[{\cf5 str}, {\cf5 int} {\cf7 |} {\cf5 float}]] {\cf7 =} \{{\cf2 \par}
+{\cf1 698  }        {\cf16 "}{\cf16 A}{\cf16 "}: \{{\cf16 "}{\cf16 A}{\cf16 "}: {\cf7 2}, {\cf16 "}{\cf16 C}{\cf16 "}: {\cf7 -}{\cf7 1}, {\cf16 "}{\cf16 G}{\cf16 "}: {\cf7 -}{\cf7 1}, {\cf16 "}{\cf16 T}{\cf16 "}: {\cf7 -}{\cf7 1}\},{\cf2 \par}
+{\cf1 699  }        {\cf16 "}{\cf16 C}{\cf16 "}: \{{\cf16 "}{\cf16 A}{\cf16 "}: {\cf7 -}{\cf7 1}, {\cf16 "}{\cf16 C}{\cf16 "}: {\cf7 2}, {\cf16 "}{\cf16 G}{\cf16 "}: {\cf7 -}{\cf7 1}, {\cf16 "}{\cf16 T}{\cf16 "}: {\cf7 -}{\cf7 1}\},{\cf2 \par}
+{\cf1 700  }        {\cf16 "}{\cf16 G}{\cf16 "}: \{{\cf16 "}{\cf16 A}{\cf16 "}: {\cf7 -}{\cf7 1}, {\cf16 "}{\cf16 C}{\cf16 "}: {\cf7 -}{\cf7 1}, {\cf16 "}{\cf16 G}{\cf16 "}: {\cf7 2}, {\cf16 "}{\cf16 T}{\cf16 "}: {\cf7 -}{\cf7 1}\},{\cf2 \par}
+{\cf1 701  }        {\cf16 "}{\cf16 T}{\cf16 "}: \{{\cf16 "}{\cf16 A}{\cf16 "}: {\cf7 -}{\cf7 1}, {\cf16 "}{\cf16 C}{\cf16 "}: {\cf7 -}{\cf7 1}, {\cf16 "}{\cf16 G}{\cf16 "}: {\cf7 -}{\cf7 1}, {\cf16 "}{\cf16 T}{\cf16 "}: {\cf7 2}\},{\cf2 \par}
+{\cf1 702  }    \}{\cf2 \par}
+{\cf1 703  }{\cf2 \par}
+{\cf1 704  }    aligned1, aligned2, score {\cf7 =} needleman_wunsch({\cf2 \par}
+{\cf1 705  }        s1,{\cf2 \par}
+{\cf1 706  }        s2,{\cf2 \par}
+{\cf1 707  }        score_matrix{\cf7 =}mat,{\cf2 \par}
+{\cf1 708  }        gap_open{\cf7 =}{\cf7 -}{\cf7 5},{\cf2 \par}
+{\cf1 709  }        gap_extend{\cf7 =}{\cf7 -}{\cf7 1},{\cf2 \par}
+{\cf1 710  }    ){\cf2 \par}
+{\cf1 711  }    {\cf5 print}({\cf16 "}{\cf16 === Pure global (no free ends) ===}{\cf16 "}){\cf2 \par}
+{\cf1 712  }    {\cf5 print}(to_ascii(aligned1, aligned2, score)){\cf2 \par}
+{\cf1 713  }{\cf2 \par}
+{\cf1 714  }    aligned1, aligned2, score {\cf7 =} needleman_wunsch({\cf2 \par}
+{\cf1 715  }        s1,{\cf2 \par}
+{\cf1 716  }        s2,{\cf2 \par}
+{\cf1 717  }        score_matrix{\cf7 =}mat,{\cf2 \par}
+{\cf1 718  }        gap_open{\cf7 =}{\cf7 -}{\cf7 5},{\cf2 \par}
+{\cf1 719  }        gap_extend{\cf7 =}{\cf7 -}{\cf7 1},{\cf2 \par}
+{\cf1 720  }        seq1_left_free{\cf7 =}{\cf5\b True},{\cf2 \par}
+{\cf1 721  }        seq1_right_free{\cf7 =}{\cf5\b True},{\cf2 \par}
+{\cf1 722  }        seq2_left_free{\cf7 =}{\cf5\b True},{\cf2 \par}
+{\cf1 723  }        seq2_right_free{\cf7 =}{\cf5\b True},{\cf2 \par}
+{\cf1 724  }    ){\cf2 \par}
+{\cf1 725  }    {\cf5 print}({\cf16 "}{\cf16 === End-gap-free global (all ends free) ===}{\cf16 "}){\cf2 \par}
+{\cf1 726  }    {\cf5 print}(to_ascii(aligned1, aligned2, score)){\cf2 \par}
+{\cf1 727  }{\cf2 \par}
+{\cf1 728  }    {\cf3\i # ---- Correctness tests vs brute force on small sequences ----}{\cf2 \par}
+{\cf1 729  }    random{\cf7 .}seed({\cf7 0}){\cf2 \par}
+{\cf1 730  }    alphabet {\cf7 =} {\cf16 "}{\cf16 ACGT}{\cf16 "}{\cf2 \par}
+{\cf1 731  }    settings {\cf7 =} [{\cf2 \par}
+{\cf1 732  }        ({\cf2 \par}
+{\cf1 733  }            {\cf16 "}{\cf16 global}{\cf16 "},{\cf2 \par}
+{\cf1 734  }            {\cf5 dict}({\cf2 \par}
+{\cf1 735  }                seq1_left_free{\cf7 =}{\cf5\b False},{\cf2 \par}
+{\cf1 736  }                seq1_right_free{\cf7 =}{\cf5\b False},{\cf2 \par}
+{\cf1 737  }                seq2_left_free{\cf7 =}{\cf5\b False},{\cf2 \par}
+{\cf1 738  }                seq2_right_free{\cf7 =}{\cf5\b False},{\cf2 \par}
+{\cf1 739  }            ),{\cf2 \par}
+{\cf1 740  }        ),{\cf2 \par}
+{\cf1 741  }        ({\cf2 \par}
+{\cf1 742  }            {\cf16 "}{\cf16 endfree_all}{\cf16 "},{\cf2 \par}
+{\cf1 743  }            {\cf5 dict}({\cf2 \par}
+{\cf1 744  }                seq1_left_free{\cf7 =}{\cf5\b True},{\cf2 \par}
+{\cf1 745  }                seq1_right_free{\cf7 =}{\cf5\b True},{\cf2 \par}
+{\cf1 746  }                seq2_left_free{\cf7 =}{\cf5\b True},{\cf2 \par}
+{\cf1 747  }                seq2_right_free{\cf7 =}{\cf5\b True},{\cf2 \par}
+{\cf1 748  }            ),{\cf2 \par}
+{\cf1 749  }        ),{\cf2 \par}
+{\cf1 750  }        ({\cf2 \par}
+{\cf1 751  }            {\cf16 "}{\cf16 fit_seq1_to_seq2}{\cf16 "},{\cf2 \par}
+{\cf1 752  }            {\cf5 dict}({\cf2 \par}
+{\cf1 753  }                seq1_left_free{\cf7 =}{\cf5\b True},{\cf2 \par}
+{\cf1 754  }                seq1_right_free{\cf7 =}{\cf5\b True},{\cf2 \par}
+{\cf1 755  }                seq2_left_free{\cf7 =}{\cf5\b False},{\cf2 \par}
+{\cf1 756  }                seq2_right_free{\cf7 =}{\cf5\b False},{\cf2 \par}
+{\cf1 757  }            ),{\cf2 \par}
+{\cf1 758  }        ),{\cf2 \par}
+{\cf1 759  }        ({\cf2 \par}
+{\cf1 760  }            {\cf16 "}{\cf16 fit_seq2_to_seq1}{\cf16 "},{\cf2 \par}
+{\cf1 761  }            {\cf5 dict}({\cf2 \par}
+{\cf1 762  }                seq1_left_free{\cf7 =}{\cf5\b False},{\cf2 \par}
+{\cf1 763  }                seq1_right_free{\cf7 =}{\cf5\b False},{\cf2 \par}
+{\cf1 764  }                seq2_left_free{\cf7 =}{\cf5\b True},{\cf2 \par}
+{\cf1 765  }                seq2_right_free{\cf7 =}{\cf5\b True},{\cf2 \par}
+{\cf1 766  }            ),{\cf2 \par}
+{\cf1 767  }        ),{\cf2 \par}
+{\cf1 768  }        ({\cf2 \par}
+{\cf1 769  }            {\cf16 "}{\cf16 free_left_both_right_none}{\cf16 "},{\cf2 \par}
+{\cf1 770  }            {\cf5 dict}({\cf2 \par}
+{\cf1 771  }                seq1_left_free{\cf7 =}{\cf5\b True},{\cf2 \par}
+{\cf1 772  }                seq1_right_free{\cf7 =}{\cf5\b False},{\cf2 \par}
+{\cf1 773  }                seq2_left_free{\cf7 =}{\cf5\b True},{\cf2 \par}
+{\cf1 774  }                seq2_right_free{\cf7 =}{\cf5\b False},{\cf2 \par}
+{\cf1 775  }            ),{\cf2 \par}
+{\cf1 776  }        ),{\cf2 \par}
+{\cf1 777  }        ({\cf2 \par}
+{\cf1 778  }            {\cf16 "}{\cf16 free_right_both_left_none}{\cf16 "},{\cf2 \par}
+{\cf1 779  }            {\cf5 dict}({\cf2 \par}
+{\cf1 780  }                seq1_left_free{\cf7 =}{\cf5\b False},{\cf2 \par}
+{\cf1 781  }                seq1_right_free{\cf7 =}{\cf5\b True},{\cf2 \par}
+{\cf1 782  }                seq2_left_free{\cf7 =}{\cf5\b False},{\cf2 \par}
+{\cf1 783  }                seq2_right_free{\cf7 =}{\cf5\b True},{\cf2 \par}
+{\cf1 784  }            ),{\cf2 \par}
+{\cf1 785  }        ),{\cf2 \par}
+{\cf1 786  }    ]{\cf2 \par}
+{\cf1 787  }{\cf2 \par}
+{\cf1 788  }    match {\cf7 =} {\cf7 2}{\cf2 \par}
+{\cf1 789  }    mismatch {\cf7 =} {\cf7 -}{\cf7 1}{\cf2 \par}
+{\cf1 790  }    gap_open {\cf7 =} {\cf7 -}{\cf7 5}{\cf2 \par}
+{\cf1 791  }    gap_extend {\cf7 =} {\cf7 -}{\cf7 1}{\cf2 \par}
+{\cf1 792  }    mat {\cf7 =} \{{\cf2 \par}
+{\cf1 793  }        {\cf16 "}{\cf16 A}{\cf16 "}: \{{\cf16 "}{\cf16 A}{\cf16 "}: match, {\cf16 "}{\cf16 C}{\cf16 "}: mismatch, {\cf16 "}{\cf16 G}{\cf16 "}: mismatch, {\cf16 "}{\cf16 T}{\cf16 "}: mismatch\},{\cf2 \par}
+{\cf1 794  }        {\cf16 "}{\cf16 C}{\cf16 "}: \{{\cf16 "}{\cf16 A}{\cf16 "}: mismatch, {\cf16 "}{\cf16 C}{\cf16 "}: match, {\cf16 "}{\cf16 G}{\cf16 "}: mismatch, {\cf16 "}{\cf16 T}{\cf16 "}: mismatch\},{\cf2 \par}
+{\cf1 795  }        {\cf16 "}{\cf16 G}{\cf16 "}: \{{\cf16 "}{\cf16 A}{\cf16 "}: mismatch, {\cf16 "}{\cf16 C}{\cf16 "}: mismatch, {\cf16 "}{\cf16 G}{\cf16 "}: match, {\cf16 "}{\cf16 T}{\cf16 "}: mismatch\},{\cf2 \par}
+{\cf1 796  }        {\cf16 "}{\cf16 T}{\cf16 "}: \{{\cf16 "}{\cf16 A}{\cf16 "}: mismatch, {\cf16 "}{\cf16 C}{\cf16 "}: mismatch, {\cf16 "}{\cf16 G}{\cf16 "}: mismatch, {\cf16 "}{\cf16 T}{\cf16 "}: match\},{\cf2 \par}
+{\cf1 797  }    \}{\cf2 \par}
+{\cf1 798  }{\cf2 \par}
+{\cf1 799  }    {\cf5 print}({\cf16 "}{\cf16 === Brute-force score checks (n,m <= 4) ===}{\cf16 "}){\cf2 \par}
+{\cf1 800  }    all_ok {\cf7 =} {\cf5\b True}{\cf2 \par}
+{\cf1 801  }    tol {\cf7 =} {\cf7 1e-9}{\cf2 \par}
+{\cf1 802  }    {\cf5\b for} name, flags {\cf8\b in} settings:{\cf2 \par}
+{\cf1 803  }        {\cf5\b for} _ {\cf8\b in} {\cf5 range}({\cf7 100}):{\cf2 \par}
+{\cf1 804  }            n {\cf7 =} random{\cf7 .}randint({\cf7 0}, {\cf7 4}){\cf2 \par}
+{\cf1 805  }            m {\cf7 =} random{\cf7 .}randint({\cf7 0}, {\cf7 4}){\cf2 \par}
+{\cf1 806  }            a {\cf7 =} {\cf16 "}{\cf16 "}{\cf7 .}join(random{\cf7 .}choice(alphabet) {\cf5\b for} _ {\cf8\b in} {\cf5 range}(n)){\cf2 \par}
+{\cf1 807  }            b {\cf7 =} {\cf16 "}{\cf16 "}{\cf7 .}join(random{\cf7 .}choice(alphabet) {\cf5\b for} _ {\cf8\b in} {\cf5 range}(m)){\cf2 \par}
+{\cf1 808  }{\cf2 \par}
+{\cf1 809  }            _, _, dp_score {\cf7 =} needleman_wunsch({\cf2 \par}
+{\cf1 810  }                a,{\cf2 \par}
+{\cf1 811  }                b,{\cf2 \par}
+{\cf1 812  }                score_matrix{\cf7 =}mat,{\cf2 \par}
+{\cf1 813  }                gap_open{\cf7 =}gap_open,{\cf2 \par}
+{\cf1 814  }                gap_extend{\cf7 =}gap_extend,{\cf2 \par}
+{\cf1 815  }                {\cf7 *}{\cf7 *}flags,{\cf2 \par}
+{\cf1 816  }            ){\cf2 \par}
+{\cf1 817  }            brute {\cf7 =} brute_force_best_score({\cf2 \par}
+{\cf1 818  }                a,{\cf2 \par}
+{\cf1 819  }                b,{\cf2 \par}
+{\cf1 820  }                score_matrix{\cf7 =}mat,{\cf2 \par}
+{\cf1 821  }                gap_open{\cf7 =}gap_open,{\cf2 \par}
+{\cf1 822  }                gap_extend{\cf7 =}gap_extend,{\cf2 \par}
+{\cf1 823  }                {\cf7 *}{\cf7 *}flags,{\cf2 \par}
+{\cf1 824  }            ){\cf2 \par}
+{\cf1 825  }{\cf2 \par}
+{\cf1 826  }            {\cf5\b if} {\cf5 abs}(dp_score {\cf7 -} brute) {\cf7 >} tol:{\cf2 \par}
+{\cf1 827  }                all_ok {\cf7 =} {\cf5\b False}{\cf2 \par}
+{\cf1 828  }                {\cf5 print}({\cf2 \par}
+{\cf1 829  }                    {\cf16 f}{\cf16 "}{\cf16 [FAIL] setting=}{\cf17\b \{}name{\cf17\b \}}{\cf16  a=}{\cf17\b \{}a{\cf17\b !r\}}{\cf16  b=}{\cf17\b \{}b{\cf17\b !r\}}{\cf16  dp=}{\cf17\b \{}dp_score{\cf17\b \}}{\cf16  brute=}{\cf17\b \{}brute{\cf17\b \}}{\cf16  flags=}{\cf17\b \{}flags{\cf17\b \}}{\cf16 "}{\cf2 \par}
+{\cf1 830  }                ){\cf2 \par}
+{\cf1 831  }                aligned_a, aligned_b, _ {\cf7 =} needleman_wunsch({\cf2 \par}
+{\cf1 832  }                    a,{\cf2 \par}
+{\cf1 833  }                    b,{\cf2 \par}
+{\cf1 834  }                    score_matrix{\cf7 =}mat,{\cf2 \par}
+{\cf1 835  }                    gap_open{\cf7 =}gap_open,{\cf2 \par}
+{\cf1 836  }                    gap_extend{\cf7 =}gap_extend,{\cf2 \par}
+{\cf1 837  }                    {\cf7 *}{\cf7 *}flags,{\cf2 \par}
+{\cf1 838  }                ){\cf2 \par}
+{\cf1 839  }                {\cf5 print}(to_ascii(aligned_a, aligned_b, dp_score, line_width{\cf7 =}{\cf5\b None})){\cf2 \par}
+{\cf1 840  }                {\cf5\b break}{\cf2 \par}
+{\cf1 841  }        {\cf5\b if} {\cf8\b not} all_ok:{\cf2 \par}
+{\cf1 842  }            {\cf5\b break}{\cf2 \par}
+{\cf1 843  }{\cf2 \par}
+{\cf1 844  }    {\cf5 print}({\cf16 "}{\cf16 All tests passed!}{\cf16 "} {\cf5\b if} all_ok {\cf5\b else} {\cf16 "}{\cf16 Some tests failed.}{\cf16 "}){\cf2 \par}
+}
