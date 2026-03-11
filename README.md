@@ -278,7 +278,7 @@ a1, a2, score = needleman_wunsch(
 Equivalent direct-native 2D usage:
 
 ```python
-from sgad_rust_native import make_rust_score_scaler, needleman_wunsch
+from sgad.rust.sgad_rust_native import make_rust_score_scaler, needleman_wunsch
 
 rust_scaler = make_rust_score_scaler(decay_exponent=1.3, temperature=0.9)
 
@@ -314,7 +314,7 @@ a1, a2, a3, score = needleman_wunsch_3d(
 Equivalent direct-native 3D usage:
 
 ```python
-from sgad_rust_native import needleman_wunsch_3d
+from sgad.rust.sgad_rust_native import needleman_wunsch_3d
 
 a1, a2, a3, score = needleman_wunsch_3d(
     seq1,

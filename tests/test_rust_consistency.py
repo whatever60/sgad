@@ -11,7 +11,7 @@ from sgad.pairwise_3d import needleman_wunsch_3d as py_nw3
 from sgad.rust.pairwise import make_rust_score_scaler
 from sgad.rust.pairwise import needleman_wunsch as rs_nw
 from sgad.rust.pairwise_3d import needleman_wunsch_3d as rs_nw3
-from sgad_rust_native import needleman_wunsch as rs_native_nw
+from sgad.rust.sgad_rust_native import needleman_wunsch as rs_native_nw
 
 MAT = {
     "A": {"A": 2, "C": -1, "G": -1, "T": -1},
@@ -118,7 +118,7 @@ def test_pairwise_consistency_no_scaling() -> None:
             score_matrix=MAT,
             gap_open=-5,
             gap_extend=-1,
-            score_scale_fn=no_score_scale_factor,
+            score_scale_fn=None,
         )
 
         assert py_a == rs_a

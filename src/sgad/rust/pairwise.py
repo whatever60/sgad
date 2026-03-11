@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import sgad_rust_native as _native
+from . import sgad_rust_native as _native
 
 RustScoreScaler = getattr(_native, "RustScoreScaler")
 make_rust_score_scaler = getattr(_native, "make_rust_score_scaler")
