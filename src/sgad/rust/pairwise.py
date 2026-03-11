@@ -27,7 +27,8 @@ def needleman_wunsch(
     """
     if not isinstance(score_scale_fn, RustScoreScaler):
         raise NotImplementedError(
-            "Rust backend supports no_score_scale_factor, None (no scaling), or RustScoreScaler from make_rust_score_scaler"
+            "Rust backend supports None (no scaling), or RustScoreScaler from "
+            f"make_rust_score_scaler, but got {type(score_scale_fn)}"
         )
 
     return _needleman_wunsch(

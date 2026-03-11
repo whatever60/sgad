@@ -12,8 +12,10 @@ import numpy as np
 
 from sgad.pairwise import needleman_wunsch as py_nw
 from sgad.pairwise_3d import needleman_wunsch_3d as py_nw3
+from sgad.rust.pairwise import make_rust_score_scaler
 from sgad.rust.pairwise import needleman_wunsch as rs_nw
 from sgad.rust.pairwise_3d import needleman_wunsch_3d as rs_nw3
+from sgad_rust_native import __file__ as _sgad_rust_native_file
 
 MAT = {
     "A": {"A": 2, "C": -1, "G": -1, "T": -1},
@@ -167,6 +169,39 @@ def _plot_from_csv(csv_path: Path, fig_path: Path) -> dict[tuple[str, str], dict
     return series
 
 
+def _print_native_build_hint() -> None:
+    native_path = Path(_sgad_rust_native_file)
+    print(f"Native module entry: {native_path}")
+    print(
+        "Hint: if Rust timings look unexpectedly slow, rebuild with: "
+        "`uv run maturin develop --release -m rust/Cargo.toml`."
+    )
+
+
+def _print_common_speedup(series: dict[tuple[str, str], dict[str, list[float] | list[int]]], dim: str) -> None:
+    py_ns = list(series[(dim, "python")]["n"])
+    py_ts = list(series[(dim, "python")]["t"])
+    rs_ns = list(series[(dim, "rust")]["n"])
+    rs_ts = list(series[(dim, "rust")]["t"])
+
+    py_map = {int(n): float(t) for n, t in zip(py_ns, py_ts)}
+    rs_map = {int(n): float(t) for n, t in zip(rs_ns, rs_ts)}
+    common_ns = sorted(set(py_map) & set(rs_map))
+
+    if not common_ns:
+        print(f"{dim.upper()} speedup (common n): no overlap")
+        return
+
+    ratios = [py_map[n] / rs_map[n] for n in common_ns]
+    tail_n = common_ns[-1]
+    tail_speedup = ratios[-1]
+    median_speedup = float(np.median(np.array(ratios, dtype=float)))
+    print(
+        f"{dim.upper()} speedup (common n): "
+        f"tail n={tail_n} => {tail_speedup:.2f}x, median={median_speedup:.2f}x"
+    )
+
+
 def main() -> None:
     out_dir = Path("benchmarks")
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -176,6 +211,7 @@ def main() -> None:
     if len(sys.argv) > 1 and sys.argv[1] == "--plot-only":
         if not csv_path.exists():
             raise FileNotFoundError(f"CSV not found for plot-only mode: {csv_path}")
+        _print_native_build_hint()
         _plot_from_csv(csv_path, fig_path)
         print(f"Wrote {fig_path}")
         return
@@ -185,7 +221,7 @@ def main() -> None:
     timeout_s = 60.0
 
     # 2D request: 500..10000 step 500. 3D uses a smaller linear sweep.
-    two_d_sizes = list(range(500, 10001, 500))
+    two_d_sizes = [20] + list(range(500, 10001, 500))
     three_d_sizes = list(range(20, 1001, 20))
 
     max_pairwise_bytes = 1_500_000_000
@@ -204,52 +240,62 @@ def main() -> None:
         ("3d", "python"): py_nw3,
         ("3d", "rust"): rs_nw3,
     }
+    rust_2d_scaler = make_rust_score_scaler(decay_exponent=1.0, temperature=1.0)
 
     print("Starting benchmark scan")
     print(f"Per-alignment timeout: {timeout_s:.0f}s")
+    _print_native_build_hint()
 
-    for dim, sizes in (("2d", two_d_sizes), ("3d", three_d_sizes)):
-        for backend in ("python", "rust"):
-            fn = call_map[(dim, backend)]
-            print(f"\n[{dim}/{backend}] scan start with {len(sizes)} candidate sizes")
+    run_plan = [
+        ("2d", "rust", two_d_sizes),
+        ("2d", "python", two_d_sizes),
+        ("3d", "rust", three_d_sizes),
+        ("3d", "python", three_d_sizes),
+    ]
 
-            for n in sizes:
-                if dim == "2d":
-                    need_bytes = _pairwise_dp_bytes(n)
-                    if need_bytes > max_pairwise_bytes:
-                        print(
-                            f"[{dim}/{backend}] stop at n={n}: estimated memory {need_bytes / 1e9:.2f} GB > cap"
-                        )
-                        break
-                    seqs = (_rand_seq(rng, n), _rand_seq(rng, n))
-                else:
-                    need_bytes = _pairwise_3d_dp_bytes(n)
-                    if need_bytes > max_3d_bytes:
-                        print(
-                            f"[{dim}/{backend}] stop at n={n}: estimated memory {need_bytes / 1e9:.2f} GB > cap"
-                        )
-                        break
-                    seqs = (_rand_seq(rng, n), _rand_seq(rng, n), _rand_seq(rng, n))
+    for dim, backend, sizes in run_plan:
+        fn = call_map[(dim, backend)]
+        print(f"\n[{dim}/{backend}] scan start with {len(sizes)} candidate sizes")
 
-                kwargs = {"score_matrix": MAT}
-                print(f"[{dim}/{backend}] n={n}: running...")
-                status, payload = _timed_run(fn, seqs, kwargs, timeout_s=timeout_s)
-
-                if status == "ok":
-                    elapsed = float(payload)
-                    series[(dim, backend)]["n"].append(n)
-                    series[(dim, backend)]["t"].append(elapsed)
-                    print(f"[{dim}/{backend}] n={n}: {elapsed:.3f}s")
-                    continue
-
-                if status == "timeout":
+        for n in sizes:
+            if dim == "2d":
+                need_bytes = _pairwise_dp_bytes(n)
+                if need_bytes > max_pairwise_bytes:
                     print(
-                        f"[{dim}/{backend}] stop at n={n}: exceeded {timeout_s:.0f}s timeout; skipping larger n"
+                        f"[{dim}/{backend}] stop at n={n}: estimated memory {need_bytes / 1e9:.2f} GB > cap"
                     )
                     break
+                seqs = (_rand_seq(rng, n), _rand_seq(rng, n))
+            else:
+                need_bytes = _pairwise_3d_dp_bytes(n)
+                if need_bytes > max_3d_bytes:
+                    print(
+                        f"[{dim}/{backend}] stop at n={n}: estimated memory {need_bytes / 1e9:.2f} GB > cap"
+                    )
+                    break
+                seqs = (_rand_seq(rng, n), _rand_seq(rng, n), _rand_seq(rng, n))
 
-                print(f"[{dim}/{backend}] stop at n={n}: error {payload}")
+            kwargs = {"score_matrix": MAT}
+            if dim == "2d" and backend == "rust":
+                kwargs["score_scale_fn"] = rust_2d_scaler
+            print(f"[{dim}/{backend}] n={n}: running...")
+            status, payload = _timed_run(fn, seqs, kwargs, timeout_s=timeout_s)
+
+            if status == "ok":
+                elapsed = float(payload)
+                series[(dim, backend)]["n"].append(n)
+                series[(dim, backend)]["t"].append(elapsed)
+                print(f"[{dim}/{backend}] n={n}: {elapsed:.3f}s")
+                continue
+
+            if status == "timeout":
+                print(
+                    f"[{dim}/{backend}] stop at n={n}: exceeded {timeout_s:.0f}s timeout; skipping larger n"
+                )
                 break
+
+            print(f"[{dim}/{backend}] stop at n={n}: error {payload}")
+            break
 
     _write_series_csv(series, csv_path)
     series = _plot_from_csv(csv_path, fig_path)
@@ -269,15 +315,8 @@ def main() -> None:
                     f"- {dim}/{backend}: {len(ns)} points, n_max={ns[-1]}, slope~{exp:.3f}, last={ts[-1]:.3f}s"
                 )
 
-    if len(series[("2d", "python")]["n"]) > 0 and len(series[("2d", "rust")]["n"]) > 0:
-        py_last = series[("2d", "python")]["t"][-1]
-        rs_last = series[("2d", "rust")]["t"][-1]
-        print(f"2D speedup at largest common tail point (approx): {py_last / rs_last:.2f}x")
-
-    if len(series[("3d", "python")]["n"]) > 0 and len(series[("3d", "rust")]["n"]) > 0:
-        py_last = series[("3d", "python")]["t"][-1]
-        rs_last = series[("3d", "rust")]["t"][-1]
-        print(f"3D speedup at largest common tail point (approx): {py_last / rs_last:.2f}x")
+    _print_common_speedup(series, "2d")
+    _print_common_speedup(series, "3d")
 
     print(f"Wrote {fig_path}")
     print(f"Wrote {csv_path}")
