@@ -136,6 +136,53 @@ def score_scale_factor(
     return sum(penalties) if penalties else 1.0
 
 
+def make_score_scaler(
+    decay_exponent: float = 1.0, temperature: float = 1.0
+) -> ScoreScaleFn:
+    """Build a configurable score-scaling callback.
+
+    The returned callback mirrors `score_scale_factor` but each enabled term is:
+
+        1.0 / (((idx + 1) / temperature) ** decay_exponent)
+
+    where `idx` is one of seq1_left_idx, seq1_right_idx, seq2_left_idx,
+    seq2_right_idx depending on the corresponding free-end flags.
+    """
+    if temperature <= 0:
+        raise ValueError("temperature must be > 0")
+
+    def _score_scale_fn(
+        seq1_left_idx: int,
+        seq1_right_idx: int,
+        seq2_left_idx: int,
+        seq2_right_idx: int,
+        seq1_left_free: bool,
+        seq1_right_free: bool,
+        seq2_left_free: bool,
+        seq2_right_free: bool,
+    ) -> float:
+        penalties = []
+        if seq1_left_free:
+            penalties.append(
+                1.0 / (((seq1_left_idx + 1) / temperature) ** decay_exponent)
+            )
+        if seq1_right_free:
+            penalties.append(
+                1.0 / (((seq1_right_idx + 1) / temperature) ** decay_exponent)
+            )
+        if seq2_left_free:
+            penalties.append(
+                1.0 / (((seq2_left_idx + 1) / temperature) ** decay_exponent)
+            )
+        if seq2_right_free:
+            penalties.append(
+                1.0 / (((seq2_right_idx + 1) / temperature) ** decay_exponent)
+            )
+        return sum(penalties) if penalties else 1.0
+
+    return _score_scale_fn
+
+
 def no_score_scale_factor(
     seq1_left_idx: int,
     seq1_right_idx: int,

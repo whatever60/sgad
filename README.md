@@ -2,8 +2,8 @@
 
 This repository currently exposes two alignment entry points:
 
-- `needleman_wunsch` in `pairwise.py` for 2-sequence alignment.
-- `needleman_wunsch_3d` in `pairwise_3d.py` for exact 3-sequence alignment.
+- `needleman_wunsch` in `src/sgad/pairwise.py` for 2-sequence alignment.
+- `needleman_wunsch_3d` in `src/sgad/pairwise_3d.py` for exact 3-sequence alignment.
 
 Both are global-style dynamic programming aligners with optional free ends (semiglobal behavior when enabled).
 
@@ -30,7 +30,7 @@ needleman_wunsch(
 ### Example (dimer structure prediction)
 
 ```python
-from pairwise import needleman_wunsch, score_scale_factor, to_ascii
+from sgad import needleman_wunsch, score_scale_factor, to_ascii
 
 primer1 = "GAGATATGAGGAGAGAGAGACAGAGG"  # right free only
 primer2_rc = "GAACAGAGGGAGAGACTAACCTTG"  # left free only
@@ -152,7 +152,7 @@ needleman_wunsch_3d(
 ### Example (dimer + two primers)
 
 ```python
-from pairwise_3d import needleman_wunsch_3d
+from sgad import needleman_wunsch_3d
 
 dimer = "CCTGCTACTCTGTTCCCTCAATCTGATAGGTTCC"  # anchored
 primer1 = "CCTGCTACTCTGTTCCTTCACATC"  # right free only
