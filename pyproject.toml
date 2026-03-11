@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "sgad"
-version = "0.1.0"
+version = "1.0.1"
 description = "Exact pairwise and 3D sequence alignment utilities"
 readme = "README.md"
 requires-python = ">=3.10"
