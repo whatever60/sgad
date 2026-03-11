@@ -40,6 +40,10 @@ target/
 # Rust/Cargo metadata backups
 **/*.rs.bk
 
+# Generated Python extension from Rust build
+src/sgad/rust/*.so
+src/sgad/rust/*.pyd
+
 # Editors/OS
 .vscode/
 .idea/

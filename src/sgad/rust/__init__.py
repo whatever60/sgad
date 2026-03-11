@@ -1,0 +1,1 @@
+"""Rust-accelerated SGAD APIs."""

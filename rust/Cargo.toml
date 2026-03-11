@@ -1,0 +1,15 @@
+[package]
+name = "sgad-rust-native"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "sgad_rust_native"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.22", features = ["extension-module", "abi3-py310"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

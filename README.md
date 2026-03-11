@@ -1,4 +1,6 @@
-# SGAD Alignment Utilities
+# SGAD
+
+Semi-Global Alignment for Dimer calculation
 
 This repository currently exposes two alignment entry points:
 
@@ -7,8 +9,23 @@ This repository currently exposes two alignment entry points:
 
 Both are global-style dynamic programming aligners with optional free ends (semiglobal behavior when enabled).
 
+## Contents
 
-## 1) Pairwise API: `needleman_wunsch`
+- [Pairwise API: `needleman_wunsch`](#pairwise-api-needleman_wunsch)
+    - [Example (dimer structure prediction)](#example-dimer-structure-prediction)
+    - [User-specified values](#user-specified-values)
+    - [Pairwise features](#pairwise-features)
+- [3D API: `needleman_wunsch_3d`](#3d-api-needleman_wunsch_3d)
+    - [Example (dimer + two primers)](#example-dimer--two-primers)
+    - [User-specified values](#user-specified-values-1)
+    - [3D features](#3d-features)
+- [Rust Backend](#rust-backend)
+    - [Rust 2D usage](#rust-2d-usage)
+    - [Rust 3D usage](#rust-3d-usage)
+    - [Benchmark Results](#benchmark-results)
+
+
+## Pairwise API: `needleman_wunsch`
 
 Signature (simplified):
 
@@ -128,7 +145,7 @@ Not supported yet:
 - Built-in ambiguous alphabet handling (for example `N`) unless you include it in `score_matrix`.
 - Banding/heuristics for very long sequences.
 
-## 2) 3D API: `needleman_wunsch_3d`
+## 3D API: `needleman_wunsch_3d`
 
 Signature (simplified):
 
@@ -217,3 +234,109 @@ Not supported yet:
 - Local alignment mode.
 - Banded or heuristic memory/time reduction for long inputs.
 - Automatic sequence preprocessing (reverse-complementing, case-specific cleanup).
+
+## Rust Backend
+
+You can use Rust-accelerated implementations for both `needleman_wunsch` (2D) and
+`needleman_wunsch_3d` (3D).
+
+### Rust 2D usage
+
+```python
+from sgad.rust.pairwise import needleman_wunsch
+
+a1, a2, score = needleman_wunsch(
+    seq1,
+    seq2,
+    score_matrix=mat,
+    gap_open=-5,
+    gap_extend=-1,
+)
+```
+
+Rust 2D score scaling options:
+
+- No scaling by default (`score_scale_fn=None`).
+- No scaling (`score_scale_fn=no_score_scale_factor`).
+- Native Rust scaler objects created by `make_rust_score_scaler`.
+
+Arbitrary Python scaling callables are not supported in the Rust 2D backend.
+
+```python
+from sgad.rust.pairwise import make_rust_score_scaler, needleman_wunsch
+
+rust_scaler = make_rust_score_scaler(decay_exponent=1.3, temperature=0.9)
+
+a1, a2, score = needleman_wunsch(
+    seq1,
+    seq2,
+    score_matrix=mat,
+    score_scale_fn=rust_scaler,
+)
+```
+
+Equivalent direct-native 2D usage:
+
+```python
+from sgad_rust_native import make_rust_score_scaler, needleman_wunsch
+
+rust_scaler = make_rust_score_scaler(decay_exponent=1.3, temperature=0.9)
+
+a1, a2, score = needleman_wunsch(
+    seq1,
+    seq2,
+    score_matrix=mat,
+    score_scaler_fn=rust_scaler,
+)
+```
+
+### Rust 3D usage
+
+```python
+from sgad.rust.pairwise_3d import needleman_wunsch_3d
+
+a1, a2, a3, score = needleman_wunsch_3d(
+    seq1,
+    seq2,
+    seq3,
+    score_matrix=mat,
+    gap_open=-5,
+    gap_extend=-1,
+    seq1_left_free=False,
+    seq1_right_free=False,
+    seq2_left_free=False,
+    seq2_right_free=False,
+    seq3_left_free=False,
+    seq3_right_free=False,
+)
+```
+
+Equivalent direct-native 3D usage:
+
+```python
+from sgad_rust_native import needleman_wunsch_3d
+
+a1, a2, a3, score = needleman_wunsch_3d(
+    seq1,
+    seq2,
+    seq3,
+    score_matrix=mat,
+)
+```
+
+### Benchmark Results
+
+Based on `benchmarks/time_complexity.csv`, the Rust backend is consistently much faster
+than the Python implementation for both 2D and 3D exact DP:
+
+- 2D common-size comparison (`n=500..1500`) shows about `248x-252x` speedup
+    (for example, `n=1500`: Python `34.84s` vs Rust `0.138s`).
+- 3D common-size comparison (`n=20..100`) shows about `233x-282x` speedup
+    (for example, `n=100`: Python `55.66s` vs Rust `0.198s`).
+- Under the benchmark stopping rules (timeout/memory guard), Python stopped at smaller
+    maximum sizes while Rust continued to larger sizes (`2D` up to `n=6500`, `3D` up to `n=260`
+    in the recorded run).
+
+Benchmarks were run on Ubuntu 22.04.5 LTS (`Linux 6.8.0-1044-aws`) on an `x86_64`
+machine with an AMD EPYC 7R13 CPU (`16` vCPUs, `8` physical cores with SMT, `32 MiB` L3)
+and `123 GiB` RAM (no swap), using `uv 0.7.15`, `rustc 1.87.0`, and `cargo 1.87.0`.
