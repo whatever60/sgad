@@ -193,8 +193,8 @@ fn column_score_scale_factor(
     seq2,
     *,
     score_matrix,
-    gap_open=-5,
-    gap_extend=-1,
+    gap_open=-5.0,
+    gap_extend=-1.0,
     seq1_left_free=false,
     seq1_right_free=false,
     seq2_left_free=false,
@@ -206,8 +206,8 @@ fn needleman_wunsch(
     seq1: &str,
     seq2: &str,
     score_matrix: &Bound<'_, PyDict>,
-    gap_open: i64,
-    gap_extend: i64,
+    gap_open: f64,
+    gap_extend: f64,
     seq1_left_free: bool,
     seq1_right_free: bool,
     seq2_left_free: bool,
@@ -295,9 +295,9 @@ fn needleman_wunsch(
                     if (mask & 1) != 0 {
                         if !((i == 0 && seq1_left_free) || (i == n && seq1_right_free)) {
                             let base = if (prev_mask & 1) != 0 {
-                                gap_extend as f64
+                                gap_extend
                             } else {
-                                gap_open as f64
+                                gap_open
                             };
                             gap_pen += base * factor;
                         }
@@ -305,9 +305,9 @@ fn needleman_wunsch(
                     if (mask & 2) != 0 {
                         if !((j == 0 && seq2_left_free) || (j == m && seq2_right_free)) {
                             let base = if (prev_mask & 2) != 0 {
-                                gap_extend as f64
+                                gap_extend
                             } else {
-                                gap_open as f64
+                                gap_open
                             };
                             gap_pen += base * factor;
                         }
@@ -389,8 +389,8 @@ fn needleman_wunsch(
     seq3,
     *,
     score_matrix,
-    gap_open=-5,
-    gap_extend=-1,
+    gap_open=-5.0,
+    gap_extend=-1.0,
     seq1_left_free=false,
     seq1_right_free=false,
     seq2_left_free=false,
@@ -403,8 +403,8 @@ fn needleman_wunsch_3d(
     seq2: &str,
     seq3: &str,
     score_matrix: &Bound<'_, PyDict>,
-    gap_open: i64,
-    gap_extend: i64,
+    gap_open: f64,
+    gap_extend: f64,
     seq1_left_free: bool,
     seq1_right_free: bool,
     seq2_left_free: bool,
@@ -499,9 +499,9 @@ fn needleman_wunsch_3d(
                         if (mask & 1) != 0 {
                             if !((i == 0 && seq1_left_free) || (i == n && seq1_right_free)) {
                                 gap_pen += if (prev_mask & 1) != 0 {
-                                    gap_extend as f64
+                                    gap_extend
                                 } else {
-                                    gap_open as f64
+                                    gap_open
                                 };
                             }
                         }
@@ -509,9 +509,9 @@ fn needleman_wunsch_3d(
                         if (mask & 2) != 0 {
                             if !((j == 0 && seq2_left_free) || (j == m && seq2_right_free)) {
                                 gap_pen += if (prev_mask & 2) != 0 {
-                                    gap_extend as f64
+                                    gap_extend
                                 } else {
-                                    gap_open as f64
+                                    gap_open
                                 };
                             }
                         }
@@ -519,9 +519,9 @@ fn needleman_wunsch_3d(
                         if (mask & 4) != 0 {
                             if !((k == 0 && seq3_left_free) || (k == l3 && seq3_right_free)) {
                                 gap_pen += if (prev_mask & 4) != 0 {
-                                    gap_extend as f64
+                                    gap_extend
                                 } else {
-                                    gap_open as f64
+                                    gap_open
                                 };
                             }
                         }

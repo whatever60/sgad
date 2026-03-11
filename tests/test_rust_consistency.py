@@ -43,13 +43,13 @@ def test_pairwise_consistency_default_no_scaling() -> None:
             s1,
             s2,
             score_matrix=MAT,
-            gap_open=-5,
-            gap_extend=-1,
+            gap_open=-5.25,
+            gap_extend=-1.1,
             score_scale_fn=no_score_scale_factor,
             **flags,
         )
         rs_a, rs_b, rs_score = rs_nw(
-            s1, s2, score_matrix=MAT, gap_open=-5, gap_extend=-1, **flags
+            s1, s2, score_matrix=MAT, gap_open=-5.25, gap_extend=-1.1, **flags
         )
 
         assert py_a == rs_a
@@ -76,8 +76,8 @@ def test_pairwise_consistency_rust_scaler_matches_python_default() -> None:
             s1,
             s2,
             score_matrix=MAT,
-            gap_open=-5,
-            gap_extend=-1,
+            gap_open=-4.75,
+            gap_extend=-0.9,
             score_scale_fn=score_scale_factor,
             **flags,
         )
@@ -85,8 +85,8 @@ def test_pairwise_consistency_rust_scaler_matches_python_default() -> None:
             s1,
             s2,
             score_matrix=MAT,
-            gap_open=-5,
-            gap_extend=-1,
+            gap_open=-4.75,
+            gap_extend=-0.9,
             score_scale_fn=rust_scaler,
             **flags,
         )
@@ -108,16 +108,16 @@ def test_pairwise_consistency_no_scaling() -> None:
             s1,
             s2,
             score_matrix=MAT,
-            gap_open=-5,
-            gap_extend=-1,
+            gap_open=-6.0,
+            gap_extend=-1.5,
             score_scale_fn=no_score_scale_factor,
         )
         rs_a, rs_b, rs_score = rs_nw(
             s1,
             s2,
             score_matrix=MAT,
-            gap_open=-5,
-            gap_extend=-1,
+            gap_open=-6.0,
+            gap_extend=-1.5,
             score_scale_fn=None,
         )
 
@@ -146,10 +146,10 @@ def test_pairwise_3d_consistency() -> None:
         )
 
         py_a, py_b, py_c, py_score = py_nw3(
-            s1, s2, s3, score_matrix=MAT, gap_open=-5, gap_extend=-1, **flags
+            s1, s2, s3, score_matrix=MAT, gap_open=-5.3, gap_extend=-1.2, **flags
         )
         rs_a, rs_b, rs_c, rs_score = rs_nw3(
-            s1, s2, s3, score_matrix=MAT, gap_open=-5, gap_extend=-1, **flags
+            s1, s2, s3, score_matrix=MAT, gap_open=-5.3, gap_extend=-1.2, **flags
         )
 
         assert py_a == rs_a
@@ -187,8 +187,8 @@ def test_pairwise_consistency_custom_rust_scaler_via_wrapper() -> None:
             s1,
             s2,
             score_matrix=MAT,
-            gap_open=-5,
-            gap_extend=-1,
+            gap_open=-5.8,
+            gap_extend=-1.05,
             score_scale_fn=py_scaler,
             **flags,
         )
@@ -196,8 +196,8 @@ def test_pairwise_consistency_custom_rust_scaler_via_wrapper() -> None:
             s1,
             s2,
             score_matrix=MAT,
-            gap_open=-5,
-            gap_extend=-1,
+            gap_open=-5.8,
+            gap_extend=-1.05,
             score_scale_fn=rust_scaler,
             **flags,
         )
@@ -236,8 +236,8 @@ def test_pairwise_consistency_custom_rust_scaler_direct_native() -> None:
             s1,
             s2,
             score_matrix=MAT,
-            gap_open=-5,
-            gap_extend=-1,
+            gap_open=-4.9,
+            gap_extend=-0.95,
             score_scale_fn=py_scaler,
             **flags,
         )
@@ -245,8 +245,8 @@ def test_pairwise_consistency_custom_rust_scaler_direct_native() -> None:
             s1,
             s2,
             score_matrix=MAT,
-            gap_open=-5,
-            gap_extend=-1,
+            gap_open=-4.9,
+            gap_extend=-0.95,
             score_scaler_fn=rust_scaler,
             **flags,
         )

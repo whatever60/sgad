@@ -70,16 +70,16 @@ def score_alignment_3d(
     aligned_seq2: str,
     aligned_seq3: str,
     *,
-    score_matrix: dict[str, dict[str, int]],
-    gap_open: int,
-    gap_extend: int,
+    score_matrix: dict[str, dict[str, int | float]],
+    gap_open: float,
+    gap_extend: float,
     seq1_left_free: bool,
     seq1_right_free: bool,
     seq2_left_free: bool,
     seq2_right_free: bool,
     seq3_left_free: bool,
     seq3_right_free: bool,
-) -> int:
+) -> float:
     """
     Score a 3-sequence alignment under:
       - sum-of-pairs substitution scoring using `score_matrix`
@@ -98,13 +98,13 @@ def score_alignment_3d(
         seq{1,2,3}_{left,right}_free: Whether leading/trailing gaps in that sequence are free.
 
     Returns:
-        Total alignment score as int.
+        Total alignment score as float.
     """
     if not (len(aligned_seq1) == len(aligned_seq2) == len(aligned_seq3)):
         raise ValueError("All aligned strings must have the same length.")
 
     L = len(aligned_seq1)
-    total = 0
+    total = 0.0
 
     # --- Sum-of-pairs substitution score per column ---
     for pos in range(L):
@@ -118,11 +118,11 @@ def score_alignment_3d(
                 letters.append(c)
 
         for x, y in combinations(letters, 2):
-            total += int(score_matrix[x][y])
+            total += float(score_matrix[x][y])
 
     # --- Affine gap penalties per sequence (independent scans) ---
-    def add_gap_penalties(aligned: str, *, left_free: bool, right_free: bool) -> int:
-        s = 0
+    def add_gap_penalties(aligned: str, *, left_free: bool, right_free: bool) -> float:
+        s = 0.0
         i = 0
         while i < L:
             if aligned[i] != "-":
@@ -161,9 +161,9 @@ def needleman_wunsch_3d(
     seq2: str,
     seq3: str,
     *,
-    score_matrix: dict[str, dict[str, int]],
-    gap_open: int = -5,
-    gap_extend: int = -1,
+    score_matrix: dict[str, dict[str, int | float]],
+    gap_open: float = -5.0,
+    gap_extend: float = -1.0,
     seq1_left_free: bool = False,
     seq1_right_free: bool = False,
     seq2_left_free: bool = False,
