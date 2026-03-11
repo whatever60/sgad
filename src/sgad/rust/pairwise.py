@@ -25,7 +25,7 @@ def needleman_wunsch(
     Supports no-scaling mode by default and RustScoreScaler objects.
     Arbitrary Python callables for score scaling are intentionally unsupported.
     """
-    if not isinstance(score_scale_fn, RustScoreScaler):
+    if score_scale_fn is not None and not isinstance(score_scale_fn, RustScoreScaler):
         raise NotImplementedError(
             "Rust backend supports None (no scaling), or RustScoreScaler from "
             f"make_rust_score_scaler, but got {type(score_scale_fn)}"
