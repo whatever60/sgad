@@ -9,7 +9,11 @@ description = "Exact pairwise and 3D sequence alignment utilities"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+  "joblib>=1.4.2",
   "numpy>=1.26",
+  "pandas>=2.3.3",
+  "primer3-py>=2.3.0",
+  "requests>=2.32.5",
 ]
 
 [tool.maturin]

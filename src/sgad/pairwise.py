@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import math
 import random
-from typing import Protocol
+from typing import Callable, Iterable, Protocol
 
 import numpy as np
+from sgad.logger import GapPenaltyLogger
 
 
 class ScoreScaleFn(Protocol):
@@ -21,6 +22,16 @@ class ScoreScaleFn(Protocol):
         seq2_left_free: bool,
         seq2_right_free: bool,
     ) -> float: ...
+
+
+def format_gap_penalty_event(event: object) -> str:
+    """Format one score event as a compact single-line debug record."""
+    return GapPenaltyLogger.format_event(event)
+
+
+def stdout_gap_penalty_event_logger(event: object) -> None:
+    """Default stdout logger for score events."""
+    GapPenaltyLogger.stdout(event)
 
 
 def to_ascii(
@@ -207,73 +218,94 @@ def no_score_scale_factor(
     return 1.0
 
 
-def column_score_scale_factor(
-    mask: int,
-    i_: int,
-    j_: int,
-    *,
-    n: int,
-    m: int,
-    seq1_left_free: bool,
-    seq1_right_free: bool,
-    seq2_left_free: bool,
-    seq2_right_free: bool,
-    score_scale_fn: ScoreScaleFn = score_scale_factor,
-) -> float:
-    """
-    Compute score scaling for a DP column from the selected scaling strategy.
+# def column_score_scale_factor(
+#     mask: int,
+#     i_: int,
+#     j_: int,
+#     *,
+#     n: int,
+#     m: int,
+#     seq1_left_free: bool,
+#     seq1_right_free: bool,
+#     seq2_left_free: bool,
+#     seq2_right_free: bool,
+#     score_scale_fn: ScoreScaleFn = score_scale_factor,
+# ) -> float:
+#     """
+#     Compute score scaling for a DP column from the selected scaling strategy.
 
-    Mask semantics:
-        0: (x, y)  -> letters from both sequences
-        1: (-, y)  -> gap in seq1
-        2: (x, -)  -> gap in seq2
+#     Mask semantics:
+#         0: (x, y)  -> letters from both sequences
+#         1: (-, y)  -> gap in seq1
+#         2: (x, -)  -> gap in seq2
 
-    For substitution columns, nucleotide positions are used directly.
-    For gap columns, the gapped sequence uses the gap boundary (Option A),
-    while the non-gapped sequence uses the actual nucleotide position.
+#     For substitution columns, nucleotide positions are used directly.
+#     For gap columns, the gapped sequence uses the gap boundary (Option A),
+#     while the non-gapped sequence uses the actual nucleotide position.
 
-    Args:
-        mask: Column mask (0, 1, or 2).
-        i_: DP row after emitting the current column.
-        j_: DP column after emitting the current column.
-        n: Length of seq1.
-        m: Length of seq2.
-        seq1_left_free: Whether the seq1 left-end contribution is neutralized.
-        seq1_right_free: Whether the seq1 right-end contribution is neutralized.
-        seq2_left_free: Whether the seq2 left-end contribution is neutralized.
-        seq2_right_free: Whether the seq2 right-end contribution is neutralized.
+#     Args:
+#         mask: Column mask (0, 1, or 2).
+#         i_: DP row after emitting the current column.
+#         j_: DP column after emitting the current column.
+#         n: Length of seq1.
+#         m: Length of seq2.
+#         seq1_left_free: Whether the seq1 left-end contribution is neutralized.
+#         seq1_right_free: Whether the seq1 right-end contribution is neutralized.
+#         seq2_left_free: Whether the seq2 left-end contribution is neutralized.
+#         seq2_right_free: Whether the seq2 right-end contribution is neutralized.
 
-    Returns:
-        Multiplicative score scale for the current alignment column.
-    """
-    if mask == 0:
-        seq1_left_idx = i_ - 1
-        seq1_right_idx = n - i_
-        seq2_left_idx = j_ - 1
-        seq2_right_idx = m - j_
-    elif mask == 1:
-        seq1_left_idx = i_
-        seq1_right_idx = n - i_
-        seq2_left_idx = j_ - 1
-        seq2_right_idx = m - j_
-    elif mask == 2:
-        seq1_left_idx = i_ - 1
-        seq1_right_idx = n - i_
-        seq2_left_idx = j_
-        seq2_right_idx = m - j_
-    else:
-        raise ValueError(f"Unsupported mask: {mask}")
+#     Returns:
+#         Multiplicative score scale for the current alignment column.
+#     """
+#     if mask == 0:
+#         seq1_left_idx = i_ - 1
+#         seq1_right_idx = n - i_
+#         seq2_left_idx = j_ - 1
+#         seq2_right_idx = m - j_
+#     elif mask == 1:
+#         seq1_left_idx = i_
+#         seq1_right_idx = n - i_
+#         seq2_left_idx = j_ - 1
+#         seq2_right_idx = m - j_
+#     elif mask == 2:
+#         seq1_left_idx = i_ - 1
+#         seq1_right_idx = n - i_
+#         seq2_left_idx = j_
+#         seq2_right_idx = m - j_
+#     else:
+#         raise ValueError(f"Unsupported mask: {mask}")
 
-    return score_scale_fn(
-        seq1_left_idx,
-        seq1_right_idx,
-        seq2_left_idx,
-        seq2_right_idx,
-        seq1_left_free=seq1_left_free,
-        seq1_right_free=seq1_right_free,
-        seq2_left_free=seq2_left_free,
-        seq2_right_free=seq2_right_free,
-    )
+#     # if mask not in (0, 1, 2):
+#     #     raise ValueError(f"Unsupported mask: {mask}")
+
+#     # seq1_left_idx = i_
+#     # seq1_right_idx = n - i_
+#     # seq2_left_idx = j_
+#     # seq2_right_idx = m - j_
+
+#     return score_scale_fn(
+#         seq1_left_idx,
+#         seq1_right_idx,
+#         seq2_left_idx,
+#         seq2_right_idx,
+#         seq1_left_free=seq1_left_free,
+#         seq1_right_free=seq1_right_free,
+#         seq2_left_free=seq2_left_free,
+#         seq2_right_free=seq2_right_free,
+#     )
+
+
+def resolve_gap_costs(
+    gap_open: float,
+    gap_extend: float,
+    enable_gap_close_penalty: bool,
+) -> tuple[float, float]:
+    """Return (effective_gap_open, gap_close_penalty)."""
+    if not enable_gap_close_penalty:
+        return gap_open, 0.0
+
+    effective_gap_open = gap_extend + (gap_open - gap_extend) / 2.0
+    return effective_gap_open, (gap_open - gap_extend) / 2.0
 
 
 def needleman_wunsch(
@@ -288,6 +320,7 @@ def needleman_wunsch(
     seq2_left_free: bool = False,
     seq2_right_free: bool = False,
     score_scale_fn: ScoreScaleFn = score_scale_factor,
+    enable_gap_close_penalty: bool = True,
 ) -> tuple[str, str, float]:
     """
     Pairwise global alignment (Needleman-Wunsch) with affine gaps and free end-gaps,
@@ -371,6 +404,11 @@ def needleman_wunsch(
         score_matrix: Substitution matrix as dict-of-dicts.
         gap_open: Negative score for opening a gap.
         gap_extend: Negative score for extending a gap by 1.
+        enable_gap_close_penalty: If True, split the open-vs-extend delta equally
+            between gap open and gap close transitions. This uses:
+            `effective_gap_open = gap_extend + (gap_open - gap_extend) / 2`
+            and adds the same value when transitioning from a gap state to a
+            match/mismatch column.
         seq1_left_free: If True, leading gaps in seq1 are free and the seq1-left
             positional contribution is neutralized to 1.
         seq1_right_free: If True, trailing gaps in seq1 are free and the seq1-right
@@ -389,7 +427,6 @@ def needleman_wunsch(
     b = seq2.upper()
     n = len(a)
     m = len(b)
-
     BIT_SEQ1 = 0
     BIT_SEQ2 = 1
     MASK_SEQ1 = 1 << BIT_SEQ1
@@ -407,6 +444,7 @@ def needleman_wunsch(
             score_matrix=score_matrix,
             gap_open=gap_open,
             gap_extend=gap_extend,
+            enable_gap_close_penalty=enable_gap_close_penalty,
             seq1_left_free=seq1_left_free,
             seq1_right_free=seq1_right_free,
             seq2_left_free=seq2_left_free,
@@ -423,6 +461,7 @@ def needleman_wunsch(
             score_matrix=score_matrix,
             gap_open=gap_open,
             gap_extend=gap_extend,
+            enable_gap_close_penalty=enable_gap_close_penalty,
             seq1_left_free=seq1_left_free,
             seq1_right_free=seq1_right_free,
             seq2_left_free=seq2_left_free,
@@ -452,33 +491,108 @@ def needleman_wunsch(
     dp[0, 0, 0] = 0.0
     ptr_state[0, 0, 0] = 0
 
+    effective_gap_open, gap_close_penalty = resolve_gap_costs(
+        gap_open, gap_extend, enable_gap_close_penalty
+    )
+
     def gap_penalty(cur_mask: int, prev_mask: int, i_: int, j_: int) -> float:
         """Return affine gap cost for the current column mask at DP cell (i_, j_)."""
         pen = 0.0
-        factor = column_score_scale_factor(
-            cur_mask,
-            i_,
-            j_,
-            n=n,
-            m=m,
-            seq1_left_free=seq1_left_free,
-            seq1_right_free=seq1_right_free,
-            seq2_left_free=seq2_left_free,
-            seq2_right_free=seq2_right_free,
-            score_scale_fn=score_scale_fn,
-        )
+        # factor = _column_score_scale_factor(cur_mask, i_, j_)
 
         # seq1 is gapped in mask bit0
         if cur_mask & MASK_SEQ1:
             if not ((i_ == 0 and seq1_left_free) or (i_ == n and seq1_right_free)):
-                base_gap = gap_extend if (prev_mask & MASK_SEQ1) else gap_open
-                pen += float(base_gap) * factor
+                is_extend = bool(prev_mask & MASK_SEQ1)
+                base_gap = gap_extend if is_extend else effective_gap_open
+                factor = score_scale_fn(
+                    (i_ - 1),
+                    n - (i_ - 1),
+                    (j_ - 1),
+                    m - (j_ - 1) - 1,
+                    seq1_left_free=seq1_left_free,
+                    seq1_right_free=seq1_right_free,
+                    seq2_left_free=seq2_left_free,
+                    seq2_right_free=seq2_right_free,
+                )
+                base_gap *= factor
+                if not is_extend and i_ == n and not seq1_right_free:
+                    # This alignment will end with gap in seq1.
+                    i__, j__ = n, m
+                    _factor = score_scale_fn(
+                        i__,
+                        n - i__,
+                        (j__ - 1),
+                        m - (j__ - 1) - 1,
+                        seq1_left_free=seq1_left_free,
+                        seq1_right_free=seq1_right_free,
+                        seq2_left_free=seq2_left_free,
+                        seq2_right_free=seq2_right_free,
+                    )
+                    base_gap += gap_close_penalty * _factor
+                pen += base_gap
 
         # seq2 is gapped in mask bit1
         if cur_mask & MASK_SEQ2:
             if not ((j_ == 0 and seq2_left_free) or (j_ == m and seq2_right_free)):
-                base_gap = gap_extend if (prev_mask & MASK_SEQ2) else gap_open
-                pen += float(base_gap) * factor
+                is_extend = bool(prev_mask & MASK_SEQ2)
+                base_gap = gap_extend if is_extend else effective_gap_open
+                factor = score_scale_fn(
+                    i_ - 1,
+                    n - (i_ - 1) - 1,
+                    j_ - 1,
+                    m - (j_ - 1),
+                    seq1_left_free=seq1_left_free,
+                    seq1_right_free=seq1_right_free,
+                    seq2_left_free=seq2_left_free,
+                    seq2_right_free=seq2_right_free,
+                )
+                base_gap *= factor
+                if not is_extend and j_ == m and not seq2_right_free:
+                    # This alignment will end with gap in seq2.
+                    i__, j__ = n, m
+                    _factor = score_scale_fn(
+                        i__ - 1,
+                        n - (i__ - 1) - 1,
+                        j__,
+                        m - j__,
+                        seq1_left_free=seq1_left_free,
+                        seq1_right_free=seq1_right_free,
+                        seq2_left_free=seq2_left_free,
+                        seq2_right_free=seq2_right_free,
+                    )
+                    base_gap += gap_close_penalty * _factor
+                pen += base_gap
+
+        # match/mismatch column -> check for gap close penalty from previous gap state
+        if cur_mask == 0:
+            # Close penalties are not applied when closing a free leading run.
+            if (prev_mask & MASK_SEQ1) and not (seq1_left_free and i_ == 1):
+                # _factor = _column_score_scale_factor(prev_mask, i_, j_ - 1)
+                _factor = score_scale_fn(
+                    i_ - 1,
+                    n - (i_ - 1),
+                    (j_ - 1) - 1,
+                    m - ((j_ - 1) - 1) - 1,
+                    seq1_left_free=seq1_left_free,
+                    seq1_right_free=seq1_right_free,
+                    seq2_left_free=seq2_left_free,
+                    seq2_right_free=seq2_right_free,
+                )
+                pen += gap_close_penalty * _factor
+            if (prev_mask & MASK_SEQ2) and not (seq2_left_free and j_ == 1):
+                # _factor = _column_score_scale_factor(prev_mask, i_ - 1, j_)
+                _factor = score_scale_fn(
+                    (i_ - 1) - 1,
+                    n - ((i_ - 1) - 1) - 1,
+                    j_ - 1,
+                    m - (j_ - 1),
+                    seq1_left_free=seq1_left_free,
+                    seq1_right_free=seq1_right_free,
+                    seq2_left_free=seq2_left_free,
+                    seq2_right_free=seq2_right_free,
+                )
+                pen += gap_close_penalty * _factor
 
         return pen
 
@@ -486,17 +600,16 @@ def needleman_wunsch(
         """Return substitution score for this column, or 0.0 for any gap-containing mask."""
         if mask != 0:
             return 0.0
-        factor = column_score_scale_factor(
-            mask,
-            i_,
-            j_,
-            n=n,
-            m=m,
+        # factor = _column_score_scale_factor(mask, i_, j_)
+        factor = score_scale_fn(
+            i_ - 1,
+            n - (i_ - 1),
+            j_ - 1,
+            m - (j_ - 1) - 1,
             seq1_left_free=seq1_left_free,
             seq1_right_free=seq1_right_free,
             seq2_left_free=seq2_left_free,
             seq2_right_free=seq2_right_free,
-            score_scale_fn=score_scale_fn,
         )
         return float(score_matrix[a[i_ - 1]][b[j_ - 1]]) * factor
 
@@ -657,6 +770,9 @@ def score_alignment(
     seq2_left_free: bool,
     seq2_right_free: bool,
     score_scale_fn: ScoreScaleFn = score_scale_factor,
+    enable_gap_close_penalty: bool = True,
+    gap_event_logger: Callable[[object], None] | None = None,
+    gap_event_types: Iterable[str] | None = None,
 ) -> float:
     """
     Score a fully specified alignment under:
@@ -671,11 +787,21 @@ def score_alignment(
         score_matrix: Substitution matrix as dict-of-dicts.
         gap_open: Negative score for opening a gap.
         gap_extend: Negative score for extending a gap.
+        enable_gap_close_penalty: If True, split the open-vs-extend delta equally
+            between gap open and gap close transitions.
         seq1_left_free/seq1_right_free: Free-end flags for gaps in seq1 and neutralizers
             for the seq1 positional contributions.
         seq2_left_free/seq2_right_free: Free-end flags for gaps in seq2 and neutralizers
             for the seq2 positional contributions.
         score_scale_fn: Callable that returns a multiplicative score scale per column.
+        gap_event_logger: Optional callback receiving structured score events.
+            If None, no score-event logs are emitted.
+        gap_event_types: Optional iterable of event names to include. If provided,
+            only those event names are sent to `gap_event_logger`.
+            Supported names currently include: `gap_extend_seq1`,
+            `gap_extend_seq2`, `gap_open_seq1`, `gap_open_seq2`,
+            `gap_close_seq1`, `gap_close_seq2`, `substitution_match`,
+            `substitution_mismatch`.
 
     Returns:
         Total alignment score as a float.
@@ -688,84 +814,316 @@ def score_alignment(
     n = len(ungapped_seq1)
     m = len(ungapped_seq2)
 
-    def prev_is_gap_in_seq1(col_idx: int) -> bool:
-        """Check whether the previous alignment column contains a gap in seq1 only."""
-        return (
-            col_idx > 0
-            and aligned_seq1[col_idx - 1] == "-"
-            and aligned_seq2[col_idx - 1] != "-"
+    def _score_scale_fn(
+        seq1_left_idx: int,
+        seq1_right_idx: int,
+        seq2_left_idx: int,
+        seq2_right_idx: int,
+    ) -> float:
+        """Call `score_scale_fn` with fixed free-end flags for this alignment."""
+        return score_scale_fn(
+            seq1_left_idx,
+            seq1_right_idx,
+            seq2_left_idx,
+            seq2_right_idx,
+            seq1_left_free=seq1_left_free,
+            seq1_right_free=seq1_right_free,
+            seq2_left_free=seq2_left_free,
+            seq2_right_free=seq2_right_free,
         )
 
-    def prev_is_gap_in_seq2(col_idx: int) -> bool:
-        """Check whether the previous alignment column contains a gap in seq2 only."""
-        return (
-            col_idx > 0
-            and aligned_seq2[col_idx - 1] == "-"
-            and aligned_seq1[col_idx - 1] != "-"
-        )
+    def prev_column_mask(col_idx: int) -> int:
+        """Return the previous column mask, or 0 before the first column."""
+        if col_idx <= 0:
+            return 0
+        prev_c1 = aligned_seq1[col_idx - 1]
+        prev_c2 = aligned_seq2[col_idx - 1]
+        if prev_c1 == "-" and prev_c2 != "-":
+            return 1
+        if prev_c1 != "-" and prev_c2 == "-":
+            return 2
+        if prev_c1 != "-" and prev_c2 != "-":
+            return 0
+        raise ValueError("Invalid alignment column: both gaps.")
 
-    total = 0.0
+    event_emitter = GapPenaltyLogger(
+        gap_event_logger=gap_event_logger,
+        gap_event_types=gap_event_types,
+    )
+
+    def prev_is_gap_in_seq(col_idx: int, *, seq_idx: int) -> bool:
+        """Check whether the previous alignment column contains a gap in one sequence only."""
+        if col_idx <= 0:
+            return False
+
+        if seq_idx == 1:
+            return aligned_seq1[col_idx - 1] == "-" and aligned_seq2[col_idx - 1] != "-"
+
+        if seq_idx == 2:
+            return aligned_seq2[col_idx - 1] == "-" and aligned_seq1[col_idx - 1] != "-"
+
+        raise ValueError(f"Unsupported seq_idx: {seq_idx}")
+
+    effective_gap_open, gap_close_penalty = resolve_gap_costs(
+        gap_open, gap_extend, enable_gap_close_penalty
+    )
+    scores = []
+
     seq1_pos = 0
     seq2_pos = 0
 
     for col_idx, (c1, c2) in enumerate(zip(aligned_seq1, aligned_seq2, strict=True)):
-        if c1 != "-" and c2 != "-":
-            factor = score_scale_fn(
-                seq1_pos,
-                n - seq1_pos - 1,
-                seq2_pos,
-                m - seq2_pos - 1,
-                seq1_left_free=seq1_left_free,
-                seq1_right_free=seq1_right_free,
-                seq2_left_free=seq2_left_free,
-                seq2_right_free=seq2_right_free,
-            )
-            total += float(score_matrix[c1][c2]) * factor
-            seq1_pos += 1
-            seq2_pos += 1
-            continue
-
-        if c1 == "-" and c2 == "-":
-            raise ValueError("Invalid alignment column: both gaps.")
-
-        if c1 == "-":
-            free = (seq1_pos == 0 and seq1_left_free) or (
-                seq1_pos == n and seq1_right_free
-            )
-            if not free:
-                factor = score_scale_fn(
-                    seq1_pos,
-                    n - seq1_pos,
-                    seq2_pos,
-                    m - seq2_pos - 1,
-                    seq1_left_free=seq1_left_free,
-                    seq1_right_free=seq1_right_free,
-                    seq2_left_free=seq2_left_free,
-                    seq2_right_free=seq2_right_free,
-                )
-                base_gap = gap_extend if prev_is_gap_in_seq1(col_idx) else gap_open
-                total += float(base_gap) * factor
-            seq2_pos += 1
-        else:
-            free = (seq2_pos == 0 and seq2_left_free) or (
-                seq2_pos == m and seq2_right_free
-            )
-            if not free:
-                factor = score_scale_fn(
+        score = 0.0
+        match (c1 == "-", c2 == "-"):
+            case (False, False):
+                factor = _score_scale_fn(
                     seq1_pos,
                     n - seq1_pos - 1,
                     seq2_pos,
-                    m - seq2_pos,
-                    seq1_left_free=seq1_left_free,
-                    seq1_right_free=seq1_right_free,
-                    seq2_left_free=seq2_left_free,
-                    seq2_right_free=seq2_right_free,
+                    m - seq2_pos - 1,
                 )
-                base_gap = gap_extend if prev_is_gap_in_seq2(col_idx) else gap_open
-                total += float(base_gap) * factor
-            seq1_pos += 1
+                score = float(score_matrix[c1][c2]) * factor
+                event_emitter.emit(
+                    event="substitution_match" if c1 == c2 else "substitution_mismatch",
+                    col_idx=col_idx,
+                    seq1_pos_=seq1_pos,
+                    seq2_pos_=seq2_pos,
+                    mask=0,
+                    prev_mask=prev_column_mask(col_idx),
+                    raw_penalty=float(score_matrix[c1][c2]),
+                    factor=factor,
+                    scaled_penalty=score,
+                    seq1_char_=c1,
+                    seq2_char_=c2,
+                )
+                if gap_close_penalty and col_idx > 0:
+                    prev_c1 = aligned_seq1[col_idx - 1]
+                    prev_c2 = aligned_seq2[col_idx - 1]
+                    if prev_c1 == "-" and prev_c2 != "-":
+                        if not (seq1_left_free and seq1_pos == 0):
+                            _factor = _score_scale_fn(
+                                seq1_pos,
+                                n - seq1_pos,
+                                seq2_pos - 1,
+                                m - (seq2_pos - 1) - 1,
+                            )
+                            close_score = gap_close_penalty * _factor
+                            score += close_score
+                            event_emitter.emit(
+                                event="gap_close_seq1",
+                                col_idx=col_idx,
+                                seq1_pos_=seq1_pos,
+                                seq2_pos_=seq2_pos,
+                                mask=0,
+                                prev_mask=prev_column_mask(col_idx),
+                                raw_penalty=gap_close_penalty,
+                                factor=_factor,
+                                scaled_penalty=close_score,
+                            )
+                    elif prev_c1 != "-" and prev_c2 == "-":
+                        if not (seq2_left_free and seq2_pos == 0):
+                            _factor = _score_scale_fn(
+                                seq1_pos - 1,
+                                n - (seq1_pos - 1) - 1,
+                                seq2_pos,
+                                m - seq2_pos,
+                            )
+                            close_score = gap_close_penalty * _factor
+                            score += close_score
+                            event_emitter.emit(
+                                event="gap_close_seq2",
+                                col_idx=col_idx,
+                                seq1_pos_=seq1_pos,
+                                seq2_pos_=seq2_pos,
+                                mask=0,
+                                prev_mask=prev_column_mask(col_idx),
+                                raw_penalty=gap_close_penalty,
+                                factor=_factor,
+                                scaled_penalty=close_score,
+                            )
+                seq1_pos += 1
+                seq2_pos += 1
+            case (True, True):
+                raise ValueError("Invalid alignment column: both gaps.")
+            case (True, False):
+                if gap_close_penalty and col_idx > 0:
+                    prev_c1 = aligned_seq1[col_idx - 1]
+                    prev_c2 = aligned_seq2[col_idx - 1]
+                    # Close seq2 gap run when transitioning seq2-gap -> seq1-gap.
+                    if prev_c1 != "-" and prev_c2 == "-":
+                        if not (seq2_left_free and seq2_pos == 0):
+                            _factor = _score_scale_fn(
+                                seq1_pos - 1,
+                                n - (seq1_pos - 1) - 1,
+                                seq2_pos,
+                                m - seq2_pos,
+                            )
+                            close_score = gap_close_penalty * _factor
+                            score += close_score
+                            event_emitter.emit(
+                                event="gap_close_seq2",
+                                col_idx=col_idx,
+                                seq1_pos_=seq1_pos,
+                                seq2_pos_=seq2_pos,
+                                mask=1,
+                                prev_mask=prev_column_mask(col_idx),
+                                raw_penalty=gap_close_penalty,
+                                factor=_factor,
+                                scaled_penalty=close_score,
+                            )
+                free = (seq1_pos == 0 and seq1_left_free) or (
+                    seq1_pos == n and seq1_right_free
+                )
+                if not free:
+                    factor = _score_scale_fn(
+                        seq1_pos,
+                        n - seq1_pos,
+                        seq2_pos,
+                        m - seq2_pos - 1,
+                    )
+                    is_extend = prev_is_gap_in_seq(col_idx, seq_idx=1)
+                    base_gap = gap_extend if is_extend else effective_gap_open
+                    gap_score = float(base_gap) * factor
+                    score += gap_score
+                    if is_extend:
+                        event_emitter.emit(
+                            event="gap_extend_seq1",
+                            col_idx=col_idx,
+                            seq1_pos_=seq1_pos,
+                            seq2_pos_=seq2_pos,
+                            mask=1,
+                            prev_mask=prev_column_mask(col_idx),
+                            raw_penalty=float(base_gap),
+                            factor=factor,
+                            scaled_penalty=gap_score,
+                        )
+                    else:
+                        event_emitter.emit(
+                            event="gap_open_seq1",
+                            col_idx=col_idx,
+                            seq1_pos_=seq1_pos,
+                            seq2_pos_=seq2_pos,
+                            mask=1,
+                            prev_mask=prev_column_mask(col_idx),
+                            raw_penalty=float(base_gap),
+                            factor=factor,
+                            scaled_penalty=gap_score,
+                        )
+                seq2_pos += 1
 
-    return total
+            case (False, True):
+                if gap_close_penalty and col_idx > 0:
+                    prev_c1 = aligned_seq1[col_idx - 1]
+                    prev_c2 = aligned_seq2[col_idx - 1]
+                    # Close seq1 gap run when transitioning seq1-gap -> seq2-gap.
+                    if prev_c1 == "-" and prev_c2 != "-":
+                        if not (seq1_left_free and seq1_pos == 0):
+                            _factor = _score_scale_fn(
+                                seq1_pos,
+                                n - seq1_pos,
+                                seq2_pos - 1,
+                                m - (seq2_pos - 1) - 1,
+                            )
+                            close_score = gap_close_penalty * _factor
+                            score += close_score
+                            event_emitter.emit(
+                                event="gap_close_seq1",
+                                col_idx=col_idx,
+                                seq1_pos_=seq1_pos,
+                                seq2_pos_=seq2_pos,
+                                mask=2,
+                                prev_mask=prev_column_mask(col_idx),
+                                raw_penalty=gap_close_penalty,
+                                factor=_factor,
+                                scaled_penalty=close_score,
+                            )
+                free = (seq2_pos == 0 and seq2_left_free) or (
+                    seq2_pos == m and seq2_right_free
+                )
+                if not free:
+                    factor = _score_scale_fn(
+                        seq1_pos,
+                        n - seq1_pos - 1,
+                        seq2_pos,
+                        m - seq2_pos,
+                    )
+                    is_extend = prev_is_gap_in_seq(col_idx, seq_idx=2)
+                    base_gap = gap_extend if is_extend else effective_gap_open
+                    gap_score = float(base_gap) * factor
+                    score += gap_score
+                    if is_extend:
+                        event_emitter.emit(
+                            event="gap_extend_seq2",
+                            col_idx=col_idx,
+                            seq1_pos_=seq1_pos,
+                            seq2_pos_=seq2_pos,
+                            mask=2,
+                            prev_mask=prev_column_mask(col_idx),
+                            raw_penalty=float(base_gap),
+                            factor=factor,
+                            scaled_penalty=gap_score,
+                        )
+                    else:
+                        event_emitter.emit(
+                            event="gap_open_seq2",
+                            col_idx=col_idx,
+                            seq1_pos_=seq1_pos,
+                            seq2_pos_=seq2_pos,
+                            mask=2,
+                            prev_mask=prev_column_mask(col_idx),
+                            raw_penalty=float(base_gap),
+                            factor=factor,
+                            scaled_penalty=gap_score,
+                        )
+                seq1_pos += 1
+        scores.append(score)
+
+    # Check if the last column is gap for seq1 and seq2. If there is gap, we need to amend the score
+    # with gap close penalty.
+    if aligned_seq1[-1] == "-" and aligned_seq2[-1] != "-":
+        if not (seq1_right_free and seq1_pos == n):
+            factor = _score_scale_fn(
+                seq1_pos,
+                n - seq1_pos,
+                seq2_pos - 1,
+                m - (seq2_pos - 1) - 1,
+            )
+            close_score = gap_close_penalty * factor
+            scores[-1] += close_score
+            event_emitter.emit(
+                event="gap_close_seq1",
+                col_idx=len(aligned_seq1) - 1,
+                seq1_pos_=seq1_pos,
+                seq2_pos_=seq2_pos - 1,
+                mask=1,
+                prev_mask=prev_column_mask(len(aligned_seq1) - 1),
+                raw_penalty=gap_close_penalty,
+                factor=factor,
+                scaled_penalty=close_score,
+            )
+    elif aligned_seq1[-1] != "-" and aligned_seq2[-1] == "-":
+        if not (seq2_right_free and seq2_pos == m):
+            factor = _score_scale_fn(
+                seq1_pos - 1,
+                n - (seq1_pos - 1) - 1,
+                seq2_pos,
+                m - seq2_pos,
+            )
+            close_score = gap_close_penalty * factor
+            scores[-1] += close_score
+            event_emitter.emit(
+                event="gap_close_seq2",
+                col_idx=len(aligned_seq1) - 1,
+                seq1_pos_=seq1_pos - 1,
+                seq2_pos_=seq2_pos,
+                mask=2,
+                prev_mask=prev_column_mask(len(aligned_seq1) - 1),
+                raw_penalty=gap_close_penalty,
+                factor=factor,
+                scaled_penalty=close_score,
+            )
+
+    return sum(scores)
 
 
 def brute_force_best_score(
@@ -775,6 +1133,7 @@ def brute_force_best_score(
     score_matrix: dict[str, dict[str, int | float]],
     gap_open: int,
     gap_extend: int,
+    enable_gap_close_penalty: bool = True,
     seq1_left_free: bool,
     seq1_right_free: bool,
     seq2_left_free: bool,
@@ -790,6 +1149,7 @@ def brute_force_best_score(
         seq1, seq2: Sequences to align.
         score_matrix: Substitution scoring as dict-of-dicts.
         gap_open, gap_extend: Affine gap scores (negative penalties).
+        enable_gap_close_penalty: Whether to apply extra gap-close transition cost.
         seq1_left_free/seq1_right_free/seq2_left_free/seq2_right_free: Free-end flags.
         score_scale_fn: Callable that returns a multiplicative score scale per column.
 
@@ -814,6 +1174,7 @@ def brute_force_best_score(
                 score_matrix=score_matrix,
                 gap_open=gap_open,
                 gap_extend=gap_extend,
+                enable_gap_close_penalty=enable_gap_close_penalty,
                 seq1_left_free=seq1_left_free,
                 seq1_right_free=seq1_right_free,
                 seq2_left_free=seq2_left_free,

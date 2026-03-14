@@ -21,6 +21,7 @@ Both are global-style dynamic programming aligners with optional free ends (semi
     - [3D features](#3d-features)
 - [Rust Backend](#rust-backend)
     - [Rust 2D usage](#rust-2d-usage)
+    - [Rust 2D multiprocessing caveat](#rust-2d-multiprocessing-caveat)
     - [Rust 3D usage](#rust-3d-usage)
     - [Benchmark Results](#benchmark-results)
 
@@ -78,10 +79,10 @@ a1, a2, score = needleman_wunsch(
 print(to_ascii(a1, a2))
 print(score)
 # Output:
-# GAGATATGAGGAGAGAGAGACAGAGG---------------
+# GAGATATGAGGAGAGAGAGACAGAGG               
 #                 || |||||||               
-# ----------------GA-ACAGAGGGAGAGACTAACCTTG
-# 8.974206349206348
+#                 GA-ACAGAGGGAGAGACTAACCTTG
+# 7.174206349206349
 ```
 
 ### User-specified values
@@ -289,6 +290,18 @@ a1, a2, score = needleman_wunsch(
     score_scaler_fn=rust_scaler,
 )
 ```
+
+### Rust 2D multiprocessing caveat
+
+The scaler must be `None` or a `RustScoreScaler` object from `make_rust_score_scaler`.
+
+`RustScoreScaler` is not picklable, so process-based parallel backends
+(`multiprocessing`, joblib `loky`) cannot directly ship that object to workers.
+
+Practical patterns:
+
+- Construct the scaler inside each worker process (or lazily cache one per worker).
+- Or use a thread-based backend when that fits your workload.
 
 ### Rust 3D usage
 
