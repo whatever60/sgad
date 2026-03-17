@@ -3,8 +3,23 @@ from __future__ import annotations
 import math
 import random
 from itertools import combinations
+from typing import Callable, Iterable
 
 import numpy as np
+from sgad.logger import GapPenaltyLogger
+
+
+def resolve_gap_costs(
+    gap_open: float,
+    gap_extend: float,
+    enable_gap_close_penalty: bool,
+) -> tuple[float, float]:
+    """Return (effective_gap_open, gap_close_penalty)."""
+    if not enable_gap_close_penalty:
+        return gap_open, 0.0
+
+    effective_gap_open = gap_extend + (gap_open - gap_extend) / 2.0
+    return effective_gap_open, (gap_open - gap_extend) / 2.0
 
 
 def to_ascii(
@@ -79,81 +94,229 @@ def score_alignment_3d(
     seq2_right_free: bool,
     seq3_left_free: bool,
     seq3_right_free: bool,
+    enable_gap_close_penalty: bool = True,
+    gap_event_logger: Callable[[object], None] | None = None,
+    gap_event_types: Iterable[str] | None = None,
 ) -> float:
     """
-    Score a 3-sequence alignment under:
-      - sum-of-pairs substitution scoring using `score_matrix`
-      - affine gaps per sequence: gap_open + gap_extend*(k-1)  (negative scores)
-      - optional free terminal gaps (leading/trailing) per sequence.
-
-    Notes:
-      - Columns with all three gaps are invalid.
-      - Gap penalties are assessed independently for each sequence by scanning its '-' runs.
+    Score a fully specified 3-sequence alignment under:
+      - sum-of-pairs substitution scoring
+      - affine gaps per sequence
+      - optional split open/close gap penalty
+      - optional free terminal gaps on each sequence end.
 
     Args:
         aligned_seq1/aligned_seq2/aligned_seq3: Alignment strings (same length, include '-').
         score_matrix: Substitution matrix as dict-of-dicts.
         gap_open: Negative score for opening a gap.
         gap_extend: Negative score for extending a gap.
+        enable_gap_close_penalty: If True, split open-vs-extend delta into open+close.
         seq{1,2,3}_{left,right}_free: Whether leading/trailing gaps in that sequence are free.
+        gap_event_logger: Optional callback receiving structured score events.
+        gap_event_types: Optional event-name whitelist for logging.
 
     Returns:
         Total alignment score as float.
     """
     if not (len(aligned_seq1) == len(aligned_seq2) == len(aligned_seq3)):
         raise ValueError("All aligned strings must have the same length.")
+    if len(aligned_seq1) == 0:
+        return 0.0
 
+    n = len(aligned_seq1.replace("-", ""))
+    m = len(aligned_seq2.replace("-", ""))
+    l = len(aligned_seq3.replace("-", ""))
+
+    effective_gap_open, gap_close_penalty = resolve_gap_costs(
+        gap_open, gap_extend, enable_gap_close_penalty
+    )
+    event_emitter = GapPenaltyLogger(
+        gap_event_logger=gap_event_logger,
+        gap_event_types=gap_event_types,
+    )
+
+    BIT_SEQ1 = 0
+    BIT_SEQ2 = 1
+    BIT_SEQ3 = 2
+    MASK_SEQ1 = 1 << BIT_SEQ1
+    MASK_SEQ2 = 1 << BIT_SEQ2
+    MASK_SEQ3 = 1 << BIT_SEQ3
     L = len(aligned_seq1)
-    total = 0.0
 
-    # --- Sum-of-pairs substitution score per column ---
-    for pos in range(L):
-        c1, c2, c3 = aligned_seq1[pos], aligned_seq2[pos], aligned_seq3[pos]
+    def prev_column_mask(col_idx: int) -> int:
+        if col_idx <= 0:
+            return 0
+        prev_c1 = aligned_seq1[col_idx - 1]
+        prev_c2 = aligned_seq2[col_idx - 1]
+        prev_c3 = aligned_seq3[col_idx - 1]
+        if prev_c1 == "-" and prev_c2 == "-" and prev_c3 == "-":
+            raise ValueError("Invalid alignment column: all gaps.")
+        mask = 0
+        if prev_c1 == "-":
+            mask |= MASK_SEQ1
+        if prev_c2 == "-":
+            mask |= MASK_SEQ2
+        if prev_c3 == "-":
+            mask |= MASK_SEQ3
+        return mask
+
+    scores: list[float] = []
+    seq1_pos = 0
+    seq2_pos = 0
+    seq3_pos = 0
+
+    for col_idx, (c1, c2, c3) in enumerate(
+        zip(aligned_seq1, aligned_seq2, aligned_seq3, strict=True)
+    ):
         if c1 == "-" and c2 == "-" and c3 == "-":
             raise ValueError("Invalid alignment column: all gaps.")
+        mask = 0
+        if c1 == "-":
+            mask |= MASK_SEQ1
+        if c2 == "-":
+            mask |= MASK_SEQ2
+        if c3 == "-":
+            mask |= MASK_SEQ3
+        prev_mask = prev_column_mask(col_idx)
+        score = 0.0
 
-        letters: list[str] = []
-        for c in (c1, c2, c3):
-            if c != "-":
-                letters.append(c)
+        # Sum-of-pairs substitution contributions for nongap letter pairs.
+        if c1 != "-" and c2 != "-":
+            sub = float(score_matrix[c1][c2])
+            score += sub
+            event_emitter.emit(
+                event="substitution_match" if c1 == c2 else "substitution_mismatch",
+                col_idx=col_idx,
+                seq1_pos_=seq1_pos,
+                seq2_pos_=seq2_pos,
+                seq3_pos_=seq3_pos,
+                mask=mask,
+                prev_mask=prev_mask,
+                raw_penalty=sub,
+                factor=1.0,
+                scaled_penalty=sub,
+                seq1_char_=c1,
+                seq2_char_=c2,
+            )
+        if c1 != "-" and c3 != "-":
+            sub = float(score_matrix[c1][c3])
+            score += sub
+            event_emitter.emit(
+                event="substitution_match" if c1 == c3 else "substitution_mismatch",
+                col_idx=col_idx,
+                seq1_pos_=seq1_pos,
+                seq2_pos_=seq2_pos,
+                seq3_pos_=seq3_pos,
+                mask=mask,
+                prev_mask=prev_mask,
+                raw_penalty=sub,
+                factor=1.0,
+                scaled_penalty=sub,
+                seq1_char_=c1,
+                seq3_char_=c3,
+            )
+        if c2 != "-" and c3 != "-":
+            sub = float(score_matrix[c2][c3])
+            score += sub
+            event_emitter.emit(
+                event="substitution_match" if c2 == c3 else "substitution_mismatch",
+                col_idx=col_idx,
+                seq1_pos_=seq1_pos,
+                seq2_pos_=seq2_pos,
+                seq3_pos_=seq3_pos,
+                mask=mask,
+                prev_mask=prev_mask,
+                raw_penalty=sub,
+                factor=1.0,
+                scaled_penalty=sub,
+                seq2_char_=c2,
+                seq3_char_=c3,
+            )
 
-        for x, y in combinations(letters, 2):
-            total += float(score_matrix[x][y])
+        # Per-sequence gap open/extend and close transitions.
+        gap_specs = (
+            (1, MASK_SEQ1, seq1_pos, n, seq1_left_free, seq1_right_free),
+            (2, MASK_SEQ2, seq2_pos, m, seq2_left_free, seq2_right_free),
+            (3, MASK_SEQ3, seq3_pos, l, seq3_left_free, seq3_right_free),
+        )
+        for seq_idx, seq_mask, seq_pos, seq_len, left_free, right_free in gap_specs:
+            cur_is_gap = bool(mask & seq_mask)
+            prev_is_gap = bool(prev_mask & seq_mask)
+            if cur_is_gap:
+                free = (seq_pos == 0 and left_free) or (
+                    seq_pos == seq_len and right_free
+                )
+                if not free:
+                    is_extend = prev_is_gap
+                    base_gap = gap_extend if is_extend else effective_gap_open
+                    score += base_gap
+                    event_emitter.emit(
+                        event=(
+                            f"gap_extend_seq{seq_idx}"
+                            if is_extend
+                            else f"gap_open_seq{seq_idx}"
+                        ),
+                        col_idx=col_idx,
+                        seq1_pos_=seq1_pos,
+                        seq2_pos_=seq2_pos,
+                        seq3_pos_=seq3_pos,
+                        mask=mask,
+                        prev_mask=prev_mask,
+                        raw_penalty=float(base_gap),
+                        factor=1.0,
+                        scaled_penalty=float(base_gap),
+                    )
+            elif gap_close_penalty and prev_is_gap and not (left_free and seq_pos == 0):
+                score += gap_close_penalty
+                event_emitter.emit(
+                    event=f"gap_close_seq{seq_idx}",
+                    col_idx=col_idx,
+                    seq1_pos_=seq1_pos,
+                    seq2_pos_=seq2_pos,
+                    seq3_pos_=seq3_pos,
+                    mask=mask,
+                    prev_mask=prev_mask,
+                    raw_penalty=float(gap_close_penalty),
+                    factor=1.0,
+                    scaled_penalty=float(gap_close_penalty),
+                )
 
-    # --- Affine gap penalties per sequence (independent scans) ---
-    def add_gap_penalties(aligned: str, *, left_free: bool, right_free: bool) -> float:
-        s = 0.0
-        i = 0
-        while i < L:
-            if aligned[i] != "-":
-                i += 1
-                continue
+        scores.append(score)
 
-            run_len = 1
-            while i + run_len < L and aligned[i + run_len] == "-":
-                run_len += 1
+        if c1 != "-":
+            seq1_pos += 1
+        if c2 != "-":
+            seq2_pos += 1
+        if c3 != "-":
+            seq3_pos += 1
 
-            is_leading = i == 0
-            is_trailing = i + run_len == L
-            free = (is_leading and left_free) or (is_trailing and right_free)
-            if not free:
-                s += gap_open + gap_extend * (run_len - 1)
-
-            i += run_len
-
-        return s
-
-    total += add_gap_penalties(
-        aligned_seq1, left_free=seq1_left_free, right_free=seq1_right_free
+    # Trailing gap runs close at alignment end.
+    trailing_specs = (
+        (1, aligned_seq1[-1] == "-", seq1_right_free),
+        (2, aligned_seq2[-1] == "-", seq2_right_free),
+        (3, aligned_seq3[-1] == "-", seq3_right_free),
     )
-    total += add_gap_penalties(
-        aligned_seq2, left_free=seq2_left_free, right_free=seq2_right_free
-    )
-    total += add_gap_penalties(
-        aligned_seq3, left_free=seq3_left_free, right_free=seq3_right_free
-    )
+    for seq_idx, has_trailing_gap, right_free in trailing_specs:
+        if gap_close_penalty and has_trailing_gap and not right_free:
+            scores[-1] += gap_close_penalty
+            event_emitter.emit(
+                event=f"gap_close_seq{seq_idx}",
+                col_idx=L - 1,
+                seq1_pos_=seq1_pos,
+                seq2_pos_=seq2_pos,
+                seq3_pos_=seq3_pos,
+                mask=(
+                    (MASK_SEQ1 if aligned_seq1[-1] == "-" else 0)
+                    | (MASK_SEQ2 if aligned_seq2[-1] == "-" else 0)
+                    | (MASK_SEQ3 if aligned_seq3[-1] == "-" else 0)
+                ),
+                prev_mask=prev_column_mask(L - 1),
+                raw_penalty=float(gap_close_penalty),
+                factor=1.0,
+                scaled_penalty=float(gap_close_penalty),
+            )
 
-    return total
+    return float(sum(scores))
 
 
 def needleman_wunsch_3d(
@@ -170,6 +333,7 @@ def needleman_wunsch_3d(
     seq2_right_free: bool = False,
     seq3_left_free: bool = False,
     seq3_right_free: bool = False,
+    enable_gap_close_penalty: bool = True,
 ) -> tuple[str, str, str, float]:
     """
     Exact 3-sequence alignment (3D DP) with affine gap penalties and free end-gaps.
@@ -274,6 +438,8 @@ def needleman_wunsch_3d(
         seq2_right_free: If True, trailing gaps in seq2 are free.
         seq3_left_free: If True, leading gaps in seq3 are free.
         seq3_right_free: If True, trailing gaps in seq3 are free.
+        enable_gap_close_penalty: If True, split open-vs-extend delta equally
+            between gap-open and gap-close transitions.
 
     Returns:
         (aligned_seq1, aligned_seq2, aligned_seq3, best_score)
@@ -323,29 +489,38 @@ def needleman_wunsch_3d(
     left_free = (seq1_left_free, seq2_left_free, seq3_left_free)
     right_free = (seq1_right_free, seq2_right_free, seq3_right_free)
     lens = (n, m, len3)
+    effective_gap_open, gap_close_penalty = resolve_gap_costs(
+        gap_open, gap_extend, enable_gap_close_penalty
+    )
 
-    def gap_penalty(cur_mask: int, prev_mask: int, i_: int, j_: int, k_: int) -> int:
-        """Sum affine gap penalties for sequences gapped in cur_mask (with boundary-free logic)."""
-        pen = 0
+    def gap_penalty(cur_mask: int, prev_mask: int, i_: int, j_: int, k_: int) -> float:
+        """Sum affine gap penalties (open/extend/close) for one DP transition."""
+        pen = 0.0
 
         # seq1 (bit0)
         if cur_mask & MASK_SEQ1:
             if not ((i_ == 0 and left_free[0]) or (i_ == lens[0] and right_free[0])):
-                pen += gap_extend if (prev_mask & MASK_SEQ1) else gap_open
+                pen += gap_extend if (prev_mask & MASK_SEQ1) else effective_gap_open
+        elif (prev_mask & MASK_SEQ1) and not (left_free[0] and i_ == 1):
+            pen += gap_close_penalty
 
         # seq2 (bit1)
         if cur_mask & MASK_SEQ2:
             if not ((j_ == 0 and left_free[1]) or (j_ == lens[1] and right_free[1])):
-                pen += gap_extend if (prev_mask & MASK_SEQ2) else gap_open
+                pen += gap_extend if (prev_mask & MASK_SEQ2) else effective_gap_open
+        elif (prev_mask & MASK_SEQ2) and not (left_free[1] and j_ == 1):
+            pen += gap_close_penalty
 
         # seq3 (bit2)
         if cur_mask & MASK_SEQ3:
             if not ((k_ == 0 and left_free[2]) or (k_ == lens[2] and right_free[2])):
-                pen += gap_extend if (prev_mask & MASK_SEQ3) else gap_open
+                pen += gap_extend if (prev_mask & MASK_SEQ3) else effective_gap_open
+        elif (prev_mask & MASK_SEQ3) and not (left_free[2] and k_ == 1):
+            pen += gap_close_penalty
 
         return pen
 
-    def col_sub_score(mask: int, i_: int, j_: int, k_: int) -> int:
+    def col_sub_score(mask: int, i_: int, j_: int, k_: int) -> float:
         """Sum-of-pairs substitution score for the column ending at (i_,j_,k_) with this mask."""
         letters: list[str] = []
         if ((mask >> BIT_SEQ1) & 1) == 0:
@@ -355,9 +530,9 @@ def needleman_wunsch_3d(
         if ((mask >> BIT_SEQ3) & 1) == 0:
             letters.append(c[k_ - 1])
 
-        s = 0
+        s = 0.0
         for x, y in combinations(letters, 2):
-            s += int(score_matrix[x][y])
+            s += float(score_matrix[x][y])
         return s
 
     # --- DP fill ---
@@ -398,7 +573,17 @@ def needleman_wunsch_3d(
                         ptr_dk[s, i, j, k] = dk
 
     # --- Termination: best state at (n,m,len3) ---
-    end_scores = dp[:, n, m, len3]
+    end_scores = dp[:, n, m, len3].copy()
+    if gap_close_penalty:
+        for s, mask in enumerate(masks):
+            if end_scores[s] == neg_inf:
+                continue
+            if (mask & MASK_SEQ1) and not seq1_right_free:
+                end_scores[s] += gap_close_penalty
+            if (mask & MASK_SEQ2) and not seq2_right_free:
+                end_scores[s] += gap_close_penalty
+            if (mask & MASK_SEQ3) and not seq3_right_free:
+                end_scores[s] += gap_close_penalty
     # np.argmax returns first max index, giving deterministic final-state tie-breaking.
     best_state = int(np.argmax(end_scores))
     best_score = float(end_scores[best_state])
@@ -519,6 +704,7 @@ def brute_force_best_score_3d(
     score_matrix: dict[str, dict[str, int]],
     gap_open: int,
     gap_extend: int,
+    enable_gap_close_penalty: bool = True,
     seq1_left_free: bool,
     seq1_right_free: bool,
     seq2_left_free: bool,
@@ -562,6 +748,7 @@ def brute_force_best_score_3d(
                 score_matrix=score_matrix,
                 gap_open=gap_open,
                 gap_extend=gap_extend,
+                enable_gap_close_penalty=enable_gap_close_penalty,
                 seq1_left_free=seq1_left_free,
                 seq1_right_free=seq1_right_free,
                 seq2_left_free=seq2_left_free,

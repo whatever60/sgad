@@ -58,21 +58,21 @@ def _score(
         score_scale_fn=score_scale_fn,
     )
     # print(flags)
-    print(to_ascii(_aln1, _aln2, a, b, c, d))
+    # print(to_ascii(_aln1, _aln2, a, b, c, d))
     # print(score)
-    rescore = score_alignment(
-        _aln1,
-        _aln2,
-        score_matrix=MAT,
-        gap_open=gap_open,
-        gap_extend=gap_extend,
-        seq1_left_free=a,
-        seq1_right_free=b,
-        seq2_left_free=c,
-        seq2_right_free=d,
-        score_scale_fn=score_scale_fn,
-    )
-    print(rescore)
+    # rescore = score_alignment(
+    #     _aln1,
+    #     _aln2,
+    #     score_matrix=MAT,
+    #     gap_open=gap_open,
+    #     gap_extend=gap_extend,
+    #     seq1_left_free=a,
+    #     seq1_right_free=b,
+    #     seq2_left_free=c,
+    #     seq2_right_free=d,
+    #     score_scale_fn=score_scale_fn,
+    # )
+    # print(rescore)
     return float(score)
 
 
@@ -196,8 +196,7 @@ def main() -> int:
     for flags in combos:
         swapped = _swap_flags(flags)
         flag_failures = 0
-        for idx, (seq1, seq2) in enumerate(pairs[96:]):
-            print(idx)
+        for idx, (seq1, seq2) in enumerate(pairs):
             s12 = _score(
                 seq1,
                 seq2,

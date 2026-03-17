@@ -26,6 +26,7 @@ class GapPenaltyLogger:
         col_idx: int,
         seq1_pos_: int,
         seq2_pos_: int,
+        seq3_pos_: int | None = None,
         mask: int,
         prev_mask: int,
         raw_penalty: float,
@@ -33,6 +34,7 @@ class GapPenaltyLogger:
         scaled_penalty: float,
         seq1_char_: str | None = None,
         seq2_char_: str | None = None,
+        seq3_char_: str | None = None,
     ) -> object:
         """Build one event object with attribute-style access."""
         return SimpleNamespace(
@@ -40,6 +42,7 @@ class GapPenaltyLogger:
             col_idx=col_idx,
             seq1_pos=seq1_pos_,
             seq2_pos=seq2_pos_,
+            seq3_pos=seq3_pos_,
             mask=mask,
             prev_mask=prev_mask,
             raw_penalty=raw_penalty,
@@ -47,28 +50,38 @@ class GapPenaltyLogger:
             scaled_penalty=scaled_penalty,
             seq1_char=seq1_char_,
             seq2_char=seq2_char_,
+            seq3_char=seq3_char_,
         )
 
     @staticmethod
     def format_event(event: object) -> str:
         """Format one score event as a compact single-line debug record."""
-        chars = ""
+        chars: list[str] = []
         seq1_char = getattr(event, "seq1_char")
         seq2_char = getattr(event, "seq2_char")
-        if seq1_char is not None and seq2_char is not None:
-            chars = f" seq1_char={seq1_char} seq2_char={seq2_char}"
+        seq3_char = getattr(event, "seq3_char", None)
+        if seq1_char is not None:
+            chars.append(f"seq1_char={seq1_char}")
+        if seq2_char is not None:
+            chars.append(f"seq2_char={seq2_char}")
+        if seq3_char is not None:
+            chars.append(f"seq3_char={seq3_char}")
+        chars_str = f" {' '.join(chars)}" if chars else ""
+        seq3_pos = getattr(event, "seq3_pos", None)
+        seq3_pos_str = f"seq3_pos={seq3_pos} " if seq3_pos is not None else ""
         return (
             "[score_alignment] "
             f"event={getattr(event, 'event')} "
             f"col_idx={getattr(event, 'col_idx')} "
             f"seq1_pos={getattr(event, 'seq1_pos')} "
             f"seq2_pos={getattr(event, 'seq2_pos')} "
+            f"{seq3_pos_str}"
             f"mask={getattr(event, 'mask')} "
             f"prev_mask={getattr(event, 'prev_mask')} "
             f"raw_penalty={getattr(event, 'raw_penalty'):.6g} "
             f"factor={getattr(event, 'factor'):.6g} "
             f"scaled_penalty={getattr(event, 'scaled_penalty'):.6g}"
-            f"{chars}"
+            f"{chars_str}"
         )
 
     @classmethod
@@ -83,6 +96,7 @@ class GapPenaltyLogger:
         col_idx: int,
         seq1_pos_: int,
         seq2_pos_: int,
+        seq3_pos_: int | None = None,
         mask: int,
         prev_mask: int,
         raw_penalty: float,
@@ -90,6 +104,7 @@ class GapPenaltyLogger:
         scaled_penalty: float,
         seq1_char_: str | None = None,
         seq2_char_: str | None = None,
+        seq3_char_: str | None = None,
     ) -> None:
         """Emit one score event if callback and event type are enabled."""
         if self._gap_event_logger is None:
@@ -105,6 +120,7 @@ class GapPenaltyLogger:
                 col_idx=col_idx,
                 seq1_pos_=seq1_pos_,
                 seq2_pos_=seq2_pos_,
+                seq3_pos_=seq3_pos_,
                 mask=mask,
                 prev_mask=prev_mask,
                 raw_penalty=raw_penalty,
@@ -112,5 +128,6 @@ class GapPenaltyLogger:
                 scaled_penalty=scaled_penalty,
                 seq1_char_=seq1_char_,
                 seq2_char_=seq2_char_,
+                seq3_char_=seq3_char_,
             )
         )

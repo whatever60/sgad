@@ -353,3 +353,31 @@ than the Python implementation for both 2D and 3D exact DP:
 Benchmarks were run on Ubuntu 22.04.5 LTS (`Linux 6.8.0-1044-aws`) on an `x86_64`
 machine with an AMD EPYC 7R13 CPU (`16` vCPUs, `8` physical cores with SMT, `32 MiB` L3)
 and `123 GiB` RAM (no swap), using `uv 0.7.15`, `rustc 1.87.0`, and `cargo 1.87.0`.
+
+## TODO
+- Fix `needleman_wunsch`
+    - Make the score consistent with `score_alignment`
+    - Sync the changes to the Rust implementation
+    - Sync the changes to the 3D implementation
+        - Python: `needleman_wunsch_3d` and `score_alignment_3d`
+        - Rust: `needleman_wunsch_3d` in `sgad_rust_native`
+- Add tests
+    - For consistency between score from `needleman_wunsch` and `score_alignment`
+    - For consistency between Python and Rust implementations
+        - 2D
+        - 3D
+    - For symmetry properties (input order swapping, sequence reversing, and complementing)
+        - For standard Needleman-Wunsch (i.e., all free flags set of False, no affine gap, no gap close penalty, no score scaling), the alignment should be symmetric with respect to swapping the two sequences. But I am not surem for example, once we turn on affine gap, if the symmetry still hold for seqeunce reversing.
+        - When one of the above condition is loosen, the symmetry may be broken, but specific combo might still be symmetric (with score scaling, alignment is still symmetric when all free flags are set to False)
+        - Complementary symmetry will be achieved when the score matrix is symmetric with respect to complementing.
+        - Therefore, I would want a comprehensive set of tests for all combinations of the above conditions to figure out which combo breaks which symmetry and make sure the observed symmetry properties are consistent with the expected ones. Conditions include:
+            - Scaled (on/off)
+            - Free ends (16 combo)
+            - Affine gap (on/off by setting gap_extend = gap_open)
+            - Gap close penalty (on/off)
+            - Complement symmetric score matrix (on/off with two score matrices where one is complement-symmetric and the other is not)
+        - Let's do this for 2D. Don't worry about 3D for now.
+
+- Document new features here
+- Rebase branches to main
+- Publish v1.1.0 with all new features and fixes.

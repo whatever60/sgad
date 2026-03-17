@@ -1,3 +1,35 @@
+"""Pairwise alignment utilities with symmetry-aware affine-gap scoring.
+
+This module implements a Needleman-Wunsch variant (2D) and exact rescoring tools
+for DNA-style alignments with four key features:
+
+1) Semi-global behavior via per-end free-gap flags
+   (`seq1_left_free`, `seq1_right_free`, `seq2_left_free`, `seq2_right_free`).
+
+2) Position-biased, DP-compatible scoring through `score_scale_fn`, where each
+   emitted alignment column receives a multiplicative factor computed from local
+   boundary-aware indices.
+
+3) Symmetry-preserving affine-gap (SPAG) objective:
+   the open-vs-extend delta is split into open and close terms
+   (`effective_gap_open` + `gap_close_penalty`), and a close term is charged
+   whenever a gap run terminates (including Ix/Iy -> M, Ix -> Iy and Iy -> Ix).
+   To achieve:
+     - Consistent scores with/without gap-close penalty on the same alignment
+     - Symmetry under reverse
+   We have to convert the normal affine gap into SPAG by:
+       effective_gap_open = gap_extend + (gap_open - gap_extend) / 2
+       gap_close_penalty = (gap_open - gap_extend) / 2
+   With consistent flag remapping under sequence transforms, this yields
+   orientation-consistent scores under reverse/swap/complement transforms and
+   keeps DP score and `score_alignment` score identical for the returned path.
+   Complement symmetry specifically requires a complement-invariant substitution
+   matrix (Watson-Crick equivariant): S(x, y) = S(comp(x), comp(y)).
+
+4) Structured score-event tracing for `score_alignment` via `GapPenaltyLogger`,
+   including substitution and gap open/extend/close events with raw/scaled terms.
+"""
+
 from __future__ import annotations
 
 import math
@@ -495,41 +527,47 @@ def needleman_wunsch(
         gap_open, gap_extend, enable_gap_close_penalty
     )
 
+    def _score_scale_fn(
+        seq1_left_idx: int,
+        seq1_right_idx: int,
+        seq2_left_idx: int,
+        seq2_right_idx: int,
+    ) -> float:
+        """Call `score_scale_fn` with fixed free-end flags for this alignment."""
+        return score_scale_fn(
+            seq1_left_idx,
+            seq1_right_idx,
+            seq2_left_idx,
+            seq2_right_idx,
+            seq1_left_free=seq1_left_free,
+            seq1_right_free=seq1_right_free,
+            seq2_left_free=seq2_left_free,
+            seq2_right_free=seq2_right_free,
+        )
+
+    def _column_factor(mask: int, i_: int, j_: int) -> float:
+        """Return score-scale factor for one emitted column at DP destination (i_, j_)."""
+        if mask == 0:
+            # (x, y): consume both sequences.
+            return _score_scale_fn(i_ - 1, n - i_, j_ - 1, m - j_)
+        if mask == MASK_SEQ1:
+            # (-, y): gap in seq1, consume seq2 only.
+            return _score_scale_fn(i_, n - i_, j_ - 1, m - j_)
+        if mask == MASK_SEQ2:
+            # (x, -): gap in seq2, consume seq1 only.
+            return _score_scale_fn(i_ - 1, n - i_, j_, m - j_)
+        raise ValueError(f"Unsupported mask: {mask}")
+
     def gap_penalty(cur_mask: int, prev_mask: int, i_: int, j_: int) -> float:
         """Return affine gap cost for the current column mask at DP cell (i_, j_)."""
         pen = 0.0
-        # factor = _column_score_scale_factor(cur_mask, i_, j_)
 
         # seq1 is gapped in mask bit0
         if cur_mask & MASK_SEQ1:
             if not ((i_ == 0 and seq1_left_free) or (i_ == n and seq1_right_free)):
                 is_extend = bool(prev_mask & MASK_SEQ1)
                 base_gap = gap_extend if is_extend else effective_gap_open
-                factor = score_scale_fn(
-                    (i_ - 1),
-                    n - (i_ - 1),
-                    (j_ - 1),
-                    m - (j_ - 1) - 1,
-                    seq1_left_free=seq1_left_free,
-                    seq1_right_free=seq1_right_free,
-                    seq2_left_free=seq2_left_free,
-                    seq2_right_free=seq2_right_free,
-                )
-                base_gap *= factor
-                if not is_extend and i_ == n and not seq1_right_free:
-                    # This alignment will end with gap in seq1.
-                    i__, j__ = n, m
-                    _factor = score_scale_fn(
-                        i__,
-                        n - i__,
-                        (j__ - 1),
-                        m - (j__ - 1) - 1,
-                        seq1_left_free=seq1_left_free,
-                        seq1_right_free=seq1_right_free,
-                        seq2_left_free=seq2_left_free,
-                        seq2_right_free=seq2_right_free,
-                    )
-                    base_gap += gap_close_penalty * _factor
+                base_gap *= _column_factor(MASK_SEQ1, i_, j_)
                 pen += base_gap
 
         # seq2 is gapped in mask bit1
@@ -537,62 +575,26 @@ def needleman_wunsch(
             if not ((j_ == 0 and seq2_left_free) or (j_ == m and seq2_right_free)):
                 is_extend = bool(prev_mask & MASK_SEQ2)
                 base_gap = gap_extend if is_extend else effective_gap_open
-                factor = score_scale_fn(
-                    i_ - 1,
-                    n - (i_ - 1) - 1,
-                    j_ - 1,
-                    m - (j_ - 1),
-                    seq1_left_free=seq1_left_free,
-                    seq1_right_free=seq1_right_free,
-                    seq2_left_free=seq2_left_free,
-                    seq2_right_free=seq2_right_free,
-                )
-                base_gap *= factor
-                if not is_extend and j_ == m and not seq2_right_free:
-                    # This alignment will end with gap in seq2.
-                    i__, j__ = n, m
-                    _factor = score_scale_fn(
-                        i__ - 1,
-                        n - (i__ - 1) - 1,
-                        j__,
-                        m - j__,
-                        seq1_left_free=seq1_left_free,
-                        seq1_right_free=seq1_right_free,
-                        seq2_left_free=seq2_left_free,
-                        seq2_right_free=seq2_right_free,
-                    )
-                    base_gap += gap_close_penalty * _factor
+                base_gap *= _column_factor(MASK_SEQ2, i_, j_)
                 pen += base_gap
+
+        # Close previous gap run when we switch directly between gap types.
+        if (cur_mask & MASK_SEQ1) and (prev_mask & MASK_SEQ2):
+            if not (seq2_left_free and j_ == 1):
+                pen += gap_close_penalty * _column_factor(MASK_SEQ2, i_, j_ - 1)
+        if (cur_mask & MASK_SEQ2) and (prev_mask & MASK_SEQ1):
+            if not (seq1_left_free and i_ == 1):
+                pen += gap_close_penalty * _column_factor(MASK_SEQ1, i_ - 1, j_)
 
         # match/mismatch column -> check for gap close penalty from previous gap state
         if cur_mask == 0:
+            prev_i = i_ - 1
+            prev_j = j_ - 1
             # Close penalties are not applied when closing a free leading run.
             if (prev_mask & MASK_SEQ1) and not (seq1_left_free and i_ == 1):
-                # _factor = _column_score_scale_factor(prev_mask, i_, j_ - 1)
-                _factor = score_scale_fn(
-                    i_ - 1,
-                    n - (i_ - 1),
-                    (j_ - 1) - 1,
-                    m - ((j_ - 1) - 1) - 1,
-                    seq1_left_free=seq1_left_free,
-                    seq1_right_free=seq1_right_free,
-                    seq2_left_free=seq2_left_free,
-                    seq2_right_free=seq2_right_free,
-                )
-                pen += gap_close_penalty * _factor
+                pen += gap_close_penalty * _column_factor(MASK_SEQ1, prev_i, prev_j)
             if (prev_mask & MASK_SEQ2) and not (seq2_left_free and j_ == 1):
-                # _factor = _column_score_scale_factor(prev_mask, i_ - 1, j_)
-                _factor = score_scale_fn(
-                    (i_ - 1) - 1,
-                    n - ((i_ - 1) - 1) - 1,
-                    j_ - 1,
-                    m - (j_ - 1),
-                    seq1_left_free=seq1_left_free,
-                    seq1_right_free=seq1_right_free,
-                    seq2_left_free=seq2_left_free,
-                    seq2_right_free=seq2_right_free,
-                )
-                pen += gap_close_penalty * _factor
+                pen += gap_close_penalty * _column_factor(MASK_SEQ2, prev_i, prev_j)
 
         return pen
 
@@ -600,17 +602,7 @@ def needleman_wunsch(
         """Return substitution score for this column, or 0.0 for any gap-containing mask."""
         if mask != 0:
             return 0.0
-        # factor = _column_score_scale_factor(mask, i_, j_)
-        factor = score_scale_fn(
-            i_ - 1,
-            n - (i_ - 1),
-            j_ - 1,
-            m - (j_ - 1) - 1,
-            seq1_left_free=seq1_left_free,
-            seq1_right_free=seq1_right_free,
-            seq2_left_free=seq2_left_free,
-            seq2_right_free=seq2_right_free,
-        )
+        factor = _column_factor(0, i_, j_)
         return float(score_matrix[a[i_ - 1]][b[j_ - 1]]) * factor
 
     # ---- DP fill ----
@@ -650,7 +642,13 @@ def needleman_wunsch(
                     ptr_dj[s, i, j] = dj
 
     # ---- Termination at (n,m) ----
-    end_scores = dp[:, n, m]
+    end_scores = dp[:, n, m].copy()
+    # Apply trailing gap-close penalty at termination for terminal-gap end states.
+    if gap_close_penalty:
+        if not seq1_right_free:
+            end_scores[1] += gap_close_penalty * _column_factor(MASK_SEQ1, n, m)
+        if not seq2_right_free:
+            end_scores[2] += gap_close_penalty * _column_factor(MASK_SEQ2, n, m)
     # np.argmax returns first max index, giving deterministic final-state tie-breaking.
     best_state = int(np.argmax(end_scores))
     best_score = float(end_scores[best_state])
