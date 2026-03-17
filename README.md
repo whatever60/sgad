@@ -1,34 +1,34 @@
 # SGAD
 
-Semi-Global Alignment for Dimer calculation
+Semi-Global Alignment for Dimer calculation.
 
-This repository currently exposes two alignment entry points:
+SGAD provides exact Needleman-Wunsch dynamic programming for 2-sequence and
+3-sequence alignment, with symmetry-aware affine-gap scoring.
 
-- `needleman_wunsch` in `src/sgad/pairwise.py` for 2-sequence alignment.
-- `needleman_wunsch_3d` in `src/sgad/pairwise_3d.py` for exact 3-sequence alignment.
+Core alignment controls in this package:
 
-Both are global-style dynamic programming aligners with optional free ends (semiglobal behavior when enabled).
+- Four free-end flags (semiglobal behavior):
+  `seq1_left_free`, `seq1_right_free`, `seq2_left_free`, `seq2_right_free`
+  (and seq3 variants in 3D).
+- Position-biased / weighted scoring via `score_scale_fn` (2D API only).
+- Gap-close penalty via `enable_gap_close_penalty` (default `True`), which
+  splits affine open-vs-extend delta into open + close terms. This improves
+  reverse/swap symmetry behavior and keeps DP score consistent with rescoring.
+  Complement score invariance additionally requires a complement-symmetric
+  substitution matrix.
 
-## Contents
+## New in v1.1.0
 
-- [Pairwise API: `needleman_wunsch`](#pairwise-api-needleman_wunsch)
-    - [Example (dimer structure prediction)](#example-dimer-structure-prediction)
-    - [User-specified values](#user-specified-values)
-    - [Pairwise features](#pairwise-features)
-- [3D API: `needleman_wunsch_3d`](#3d-api-needleman_wunsch_3d)
-    - [Example (dimer + two primers)](#example-dimer--two-primers)
-    - [User-specified values](#user-specified-values-1)
-    - [3D features](#3d-features)
-- [Rust Backend](#rust-backend)
-    - [Rust 2D usage](#rust-2d-usage)
-    - [Rust 2D multiprocessing caveat](#rust-2d-multiprocessing-caveat)
-    - [Rust 3D usage](#rust-3d-usage)
-    - [Benchmark Results](#benchmark-results)
+- Added symmetry-aware gap-close handling in Python and Rust 2D/3D aligners,
+  with score parity between DP-reported score and rescored final alignment.
+- Added analysis/verification scripts for:
+  - DP-vs-rescore consistency (2D/3D),
+  - symmetry sweeps (swap/reverse/complement),
+  - Python-vs-Rust alignment/score parity.
+- Added high-level interfaces for external dimer assessment libraries:
+  Primer3+`ntthal` batch analysis and IDT OligoAnalyzer batch integration.
 
-
-## Pairwise API: `needleman_wunsch`
-
-Signature (simplified):
+## 2D Needleman-Wunsch
 
 ```python
 needleman_wunsch(
@@ -37,6 +37,7 @@ needleman_wunsch(
     score_matrix,
     gap_open=-5,
     gap_extend=-1,
+    enable_gap_close_penalty=True,
     seq1_left_free=False,
     seq1_right_free=False,
     seq2_left_free=False,
@@ -45,16 +46,10 @@ needleman_wunsch(
 ) -> tuple[str, str, float]
 ```
 
-### Example (dimer structure prediction)
+### Example (Python 2D)
 
 ```python
-from sgad import needleman_wunsch, score_scale_factor, to_ascii
-
-primer1 = "GAGATATGAGGAGAGAGAGACAGAGG"  # right free only
-primer2_rc = "GAACAGAGGGAGAGACTAACCTTG"  # left free only
-
-seq1_left_free, seq1_right_free = False, True
-seq2_left_free, seq2_right_free = True, False
+from sgad.pairwise import needleman_wunsch, score_scale_factor, to_ascii
 
 mat = {
     "A": {"A": 2, "C": -1, "G": -1, "T": -1},
@@ -64,91 +59,95 @@ mat = {
 }
 
 a1, a2, score = needleman_wunsch(
-    primer1,
-    primer2_rc,
+    "GAGATATGAGGAGAGAGAGACAGAGG",
+    "GAACAGAGGGAGAGACTAACCTTG",
     score_matrix=mat,
     gap_open=-5,
     gap_extend=-1,
-    seq1_left_free=seq1_left_free,
-    seq1_right_free=seq1_right_free,
-    seq2_left_free=seq2_left_free,
-    seq2_right_free=seq2_right_free,
+    seq1_left_free=False,
+    seq1_right_free=True,
+    seq2_left_free=True,
+    seq2_right_free=False,
     score_scale_fn=score_scale_factor,
 )
 
-print(to_ascii(a1, a2))
+print(to_ascii(a1, a2, False, True, True, False))
 print(score)
-# Output:
-# GAGATATGAGGAGAGAGAGACAGAGG               
-#                 || |||||||               
-#                 GA-ACAGAGGGAGAGACTAACCTTG
-# 7.174206349206349
 ```
 
-### User-specified values
+Output:
 
-- `score_matrix`: your substitution model.
-- `gap_open` and `gap_extend`: affine gap penalties.
-- Free-end flags: whether leading/trailing gaps are free per sequence.
-- `score_scale_fn`:
-    - Preimplemented options:
-        - `score_scale_factor`: default behavior in this module.
-        - `no_score_scale_factor`: disable scaling (always returns `1.0`).
-    - User-defined option:
-        - You can pass your own callable with the same signature as `score_scale_factor`.
-        - The function must accept four indices plus the four `*_free` flags and return a float scale.
+```text
+GAGATATGAGGAGAGAGAGACAGAGG               
+                || |||||||               
+                GA-ACAGAGGGAGAGACTAACCTTG
+8.97420634920635
+```
 
-Example custom function:
+### User-specified arguments
+
+- `score_matrix`: substitution model.
+- `gap_open`, `gap_extend`: affine-gap parameters.
+- `enable_gap_close_penalty`: toggle split open/close gap accounting.
+- Four free-end flags: semiglobal boundary behavior per sequence side.
+- `score_scale_fn`: per-column weighting callback.
+  - Use `no_score_scale_factor` to disable weighting.
+  - Use `make_score_scaler(...)` for configurable inverse-distance weighting.
+
+### Rust 2D usage
+
+Rust wrapper API is under `sgad.rust`. `score_scale_fn` must be either `None`
+or a `RustScoreScaler` object from `make_rust_score_scaler(...)`.
 
 ```python
-def my_score_scale_fn(
-        seq1_left_idx: int,
-        seq1_right_idx: int,
-        seq2_left_idx: int,
-        seq2_right_idx: int,
-        seq1_left_free: bool,
-        seq1_right_free: bool,
-        seq2_left_free: bool,
-        seq2_right_free: bool,
-) -> float:
-        # Replace with your own domain-specific scaling logic.
-        return 1.0
+from sgad.pairwise import to_ascii
+from sgad.rust.pairwise import make_rust_score_scaler, needleman_wunsch
 
+mat = {
+    "A": {"A": 2, "C": -1, "G": -1, "T": -1},
+    "C": {"A": -1, "C": 2, "G": -1, "T": -1},
+    "G": {"A": -1, "C": -1, "G": 2, "T": -1},
+    "T": {"A": -1, "C": -1, "G": -1, "T": 2},
+}
+
+rust_scaler = make_rust_score_scaler(decay_exponent=1.0, temperature=1.0)
 
 a1, a2, score = needleman_wunsch(
-        primer1,
-        primer2_rc,
-        score_matrix=mat,
-        gap_open=-5,
-        gap_extend=-1,
-        seq1_left_free=seq1_left_free,
-        seq1_right_free=seq1_right_free,
-        seq2_left_free=seq2_left_free,
-        seq2_right_free=seq2_right_free,
-        score_scale_fn=my_score_scale_fn,
+    "GAGATATGAGGAGAGAGAGACAGAGG",
+    "GAACAGAGGGAGAGACTAACCTTG",
+    score_matrix=mat,
+    gap_open=-5,
+    gap_extend=-1,
+    seq1_left_free=False,
+    seq1_right_free=True,
+    seq2_left_free=True,
+    seq2_right_free=False,
+    enable_gap_close_penalty=True,
+    score_scale_fn=rust_scaler,
 )
+
+print(to_ascii(a1, a2, False, True, True, False))
+print(score)
 ```
 
-### Pairwise features
+Output:
 
-Supported:
+```text
+GAGATATGAGGAGAGAGAGACAGAGG               
+                || |||||||               
+                GA-ACAGAGGGAGAGACTAACCTTG
+8.97420634920635
+```
 
-- Exact DP optimum for two sequences.
-- Affine gap penalties.
-- Per-sequence free left/right ends.
-- Deterministic tie-breaking.
-- Pluggable score scaling callback (`score_scale_fn`).
+### Rust 2D multiprocessing caveat
 
-Not supported yet:
+`RustScoreScaler` objects are not picklable. In process-based parallelism
+(`multiprocessing`, joblib `loky`), build the scaler inside each worker (or use
+`score_scale_fn=None`). Thread-based execution avoids this serialization issue.
 
-- Local alignment (Smith-Waterman).
-- Automatic reverse-complement generation.
-- Built-in ambiguous alphabet handling (for example `N`) unless you include it in `score_matrix`.
-- Banding/heuristics for very long sequences.
+## 3D Needleman-Wunsch
 
-## 3D API: `needleman_wunsch_3d`
-
-Signature (simplified):
+Important: 3D currently does not expose score scaling (`score_scale_fn`).
 
 ```python
 needleman_wunsch_3d(
@@ -158,6 +157,7 @@ needleman_wunsch_3d(
     score_matrix,
     gap_open=-5,
     gap_extend=-1,
+    enable_gap_close_penalty=True,
     seq1_left_free=False,
     seq1_right_free=False,
     seq2_left_free=False,
@@ -167,18 +167,10 @@ needleman_wunsch_3d(
 ) -> tuple[str, str, str, float]
 ```
 
-### Example (dimer + two primers)
+### Example (Python 3D)
 
 ```python
-from sgad import needleman_wunsch_3d
-
-dimer = "CCTGCTACTCTGTTCCCTCAATCTGATAGGTTCC"  # anchored
-primer1 = "CCTGCTACTCTGTTCCTTCACATC"  # right free only
-primer2_rc = "CTGTTCCCTCAATCTGATAGGTTCC"  # left free only
-
-seq1_left_free = seq1_right_free = False
-seq2_left_free, seq2_right_free = False, True
-seq3_left_free, seq3_right_free = True, False
+from sgad.pairwise_3d import needleman_wunsch_3d
 
 mat = {
     "A": {"A": 2, "C": -1, "G": -1, "T": -1},
@@ -188,156 +180,92 @@ mat = {
 }
 
 a1, a2, a3, score = needleman_wunsch_3d(
-    dimer,
-    primer1,
-    primer2_rc,
-    score_matrix=mat,
-    gap_open=-5,
-    gap_extend=-1,
-    seq1_left_free=seq1_left_free,
-    seq1_right_free=seq1_right_free,
-    seq2_left_free=seq2_left_free,
-    seq2_right_free=seq2_right_free,
-    seq3_left_free=seq3_left_free,
-    seq3_right_free=seq3_right_free,
-)
-
-print(a1)
-print(a2)
-print(a3)
-print(score)
-# Output:
-# CCTGCTACTCTGTTCCCTCA-ATCTGATAGGTTCC
-# CCTGCTACTCTGTTCCTTCACATC-----------
-# ---------CTGTTCCCTCA-ATCTGATAGGTTCC
-# 108.0
-```
-
-### User-specified values
-
-- `score_matrix` for all letters you expect.
-- Affine gap penalties.
-- Left/right free-end settings for each of the 3 sequences.
-
-### 3D features
-
-Supported:
-
-- Exact 3-sequence DP optimum (no heuristic shortcuts).
-- Sum-of-pairs substitution scoring.
-- Affine gaps per sequence.
-- Per-sequence free terminal gaps (left/right).
-- Deterministic tie-breaking.
-
-Not supported yet:
-
-- Pluggable `score_scale_fn` (3D currently has no scaling callback parameter).
-- Local alignment mode.
-- Banded or heuristic memory/time reduction for long inputs.
-- Automatic sequence preprocessing (reverse-complementing, case-specific cleanup).
-
-## Rust Backend
-
-You can use Rust-accelerated implementations for both `needleman_wunsch` (2D) and
-`needleman_wunsch_3d` (3D).
-
-### Rust 2D usage
-
-```python
-from sgad.rust.pairwise import needleman_wunsch
-
-a1, a2, score = needleman_wunsch(
-    seq1,
-    seq2,
-    score_matrix=mat,
-    gap_open=-5,
-    gap_extend=-1,
-)
-```
-
-Rust 2D score scaling options:
-
-- No scaling by default (`score_scale_fn=None`).
-- No scaling (`score_scale_fn=no_score_scale_factor`).
-- Native Rust scaler objects created by `make_rust_score_scaler`.
-
-Arbitrary Python scaling callables are not supported in the Rust 2D backend.
-
-```python
-from sgad.rust.pairwise import make_rust_score_scaler, needleman_wunsch
-
-rust_scaler = make_rust_score_scaler(decay_exponent=1.3, temperature=0.9)
-
-a1, a2, score = needleman_wunsch(
-    seq1,
-    seq2,
-    score_matrix=mat,
-    score_scale_fn=rust_scaler,
-)
-```
-
-Equivalent direct-native 2D usage:
-
-```python
-from sgad.rust.sgad_rust_native import make_rust_score_scaler, needleman_wunsch
-
-rust_scaler = make_rust_score_scaler(decay_exponent=1.3, temperature=0.9)
-
-a1, a2, score = needleman_wunsch(
-    seq1,
-    seq2,
-    score_matrix=mat,
-    score_scaler_fn=rust_scaler,
-)
-```
-
-### Rust 2D multiprocessing caveat
-
-The scaler must be `None` or a `RustScoreScaler` object from `make_rust_score_scaler`.
-
-`RustScoreScaler` is not picklable, so process-based parallel backends
-(`multiprocessing`, joblib `loky`) cannot directly ship that object to workers.
-
-Practical patterns:
-
-- Construct the scaler inside each worker process (or lazily cache one per worker).
-- Or use a thread-based backend when that fits your workload.
-
-### Rust 3D usage
-
-```python
-from sgad.rust.pairwise_3d import needleman_wunsch_3d
-
-a1, a2, a3, score = needleman_wunsch_3d(
-    seq1,
-    seq2,
-    seq3,
+    "CCTGCTACTCTGTTCCCTCAATCTGATAGGTTCC",
+    "CCTGCTACTCTGTTCCTTCACATC",
+    "CTGTTCCCTCAATCTGATAGGTTCC",
     score_matrix=mat,
     gap_open=-5,
     gap_extend=-1,
     seq1_left_free=False,
     seq1_right_free=False,
     seq2_left_free=False,
-    seq2_right_free=False,
-    seq3_left_free=False,
+    seq2_right_free=True,
+    seq3_left_free=True,
     seq3_right_free=False,
 )
+
+print(a1)
+print(a2)
+print(a3)
+print(score)
 ```
 
-Equivalent direct-native 3D usage:
+Output:
+
+```text
+CCTGCTACTCTGTTCCCTCA-ATCTGATAGGTTCC
+CCTGCTACTCTGTTCCTTCACATC-----------
+---------CTGTTCCCTCA-ATCTGATAGGTTCC
+108.0
+```
+
+### User-specified arguments
+
+- `score_matrix`: substitution model (sum-of-pairs scoring in 3D).
+- `gap_open`, `gap_extend`: affine-gap parameters.
+- `enable_gap_close_penalty`: toggle split open/close gap accounting.
+- Six free-end flags: semiglobal boundary behavior for all sequence sides.
+
+### Rust 3D usage
 
 ```python
-from sgad.rust.sgad_rust_native import needleman_wunsch_3d
+from sgad.rust.pairwise_3d import needleman_wunsch_3d
+
+mat = {
+    "A": {"A": 2, "C": -1, "G": -1, "T": -1},
+    "C": {"A": -1, "C": 2, "G": -1, "T": -1},
+    "G": {"A": -1, "C": -1, "G": 2, "T": -1},
+    "T": {"A": -1, "C": -1, "G": -1, "T": 2},
+}
 
 a1, a2, a3, score = needleman_wunsch_3d(
-    seq1,
-    seq2,
-    seq3,
+    "CCTGCTACTCTGTTCCCTCAATCTGATAGGTTCC",
+    "CCTGCTACTCTGTTCCTTCACATC",
+    "CTGTTCCCTCAATCTGATAGGTTCC",
     score_matrix=mat,
+    gap_open=-5,
+    gap_extend=-1,
+    seq1_left_free=False,
+    seq1_right_free=False,
+    seq2_left_free=False,
+    seq2_right_free=True,
+    seq3_left_free=True,
+    seq3_right_free=False,
+    enable_gap_close_penalty=True,
 )
+
+print(a1)
+print(a2)
+print(a3)
+print(score)
 ```
 
-### Benchmark Results
+Output:
+
+```text
+CCTGCTACTCTGTTCCCTCA-ATCTGATAGGTTCC
+CCTGCTACTCTGTTCCTTCACATC-----------
+---------CTGTTCCCTCA-ATCTGATAGGTTCC
+108.0
+```
+
+### Rust 3D multiprocessing caveat
+
+Unlike Rust 2D, there is no scaler object to serialize. For process pools,
+ensure worker-call arguments remain picklable and import the Rust module in the
+worker runtime as usual.
+
+## Benchmarking Python vs Rust backends
 
 Based on `benchmarks/time_complexity.csv`, the Rust backend is consistently much faster
 than the Python implementation for both 2D and 3D exact DP:
@@ -354,30 +282,58 @@ Benchmarks were run on Ubuntu 22.04.5 LTS (`Linux 6.8.0-1044-aws`) on an `x86_64
 machine with an AMD EPYC 7R13 CPU (`16` vCPUs, `8` physical cores with SMT, `32 MiB` L3)
 and `123 GiB` RAM (no swap), using `uv 0.7.15`, `rustc 1.87.0`, and `cargo 1.87.0`.
 
-## TODO
-- Fix `needleman_wunsch`
-    - Make the score consistent with `score_alignment`
-    - Sync the changes to the Rust implementation
-    - Sync the changes to the 3D implementation
-        - Python: `needleman_wunsch_3d` and `score_alignment_3d`
-        - Rust: `needleman_wunsch_3d` in `sgad_rust_native`
-- Add tests
-    - For consistency between score from `needleman_wunsch` and `score_alignment`
-    - For consistency between Python and Rust implementations
-        - 2D
-        - 3D
-    - For symmetry properties (input order swapping, sequence reversing, and complementing)
-        - For standard Needleman-Wunsch (i.e., all free flags set of False, no affine gap, no gap close penalty, no score scaling), the alignment should be symmetric with respect to swapping the two sequences. But I am not surem for example, once we turn on affine gap, if the symmetry still hold for seqeunce reversing.
-        - When one of the above condition is loosen, the symmetry may be broken, but specific combo might still be symmetric (with score scaling, alignment is still symmetric when all free flags are set to False)
-        - Complementary symmetry will be achieved when the score matrix is symmetric with respect to complementing.
-        - Therefore, I would want a comprehensive set of tests for all combinations of the above conditions to figure out which combo breaks which symmetry and make sure the observed symmetry properties are consistent with the expected ones. Conditions include:
-            - Scaled (on/off)
-            - Free ends (16 combo)
-            - Affine gap (on/off by setting gap_extend = gap_open)
-            - Gap close penalty (on/off)
-            - Complement symmetric score matrix (on/off with two score matrices where one is complement-symmetric and the other is not)
-        - Let's do this for 2D. Don't worry about 3D for now.
+## Interface to external dimer assessment libraries
 
-- Document new features here
-- Rebase branches to main
-- Publish v1.1.0 with all new features and fixes.
+### Primer3 interface
+
+```python
+from sgad.api.primer3 import heterodimer_batch_primer3
+
+df = heterodimer_batch_primer3(
+    primer1_seqs=["ACGTACGT"],
+    primer2_seqs=["TGCATGCA"],
+    primer1_names=["fwd_1"],
+    primer2_names=["rev_1"],
+    n_jobs=1,
+)
+
+print(df[["primer1_name", "primer2_name", "primer3_tm", "ntthal_t"]].to_string(index=False))
+```
+
+Output:
+
+```text
+primer1_name primer2_name  primer3_tm  ntthal_t
+       fwd_1        rev_1  -70.205833  -70.2058
+```
+
+### IDT OligoAnalyzer interface
+
+```python
+from sgad.api.idt import heterodimer_batch_idt
+
+res = heterodimer_batch_idt(
+    primer1_seqs=["ACGTACGT"],
+    primer2_seqs=["TGCATGCA"],
+    primer1_names=["fwd_1"],
+    primer2_names=["rev_1"],
+    client_id="invalid",
+    client_secret="invalid",
+    idt_username="invalid",
+    idt_password="invalid",
+    timeout_s=5.0,
+    max_retries=1,
+    raise_on_error=False,
+)
+
+print(res[0])
+```
+
+This example intentionally uses invalid credentials to show the failure-record
+shape returned when `raise_on_error=False`.
+
+Output:
+
+```text
+{'primer1_name': 'fwd_1', 'primer2_name': 'rev_1', 'primer1': 'ACGTACGT', 'primer2': 'TGCATGCA', 'ok': False, 'response': None, 'status_code': 400, 'error': '400 Client Error: Bad Request for url: https://www.idtdna.com/Identityserver/connect/token'}
+```
