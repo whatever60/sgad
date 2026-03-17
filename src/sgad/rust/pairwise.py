@@ -18,6 +18,7 @@ def needleman_wunsch(
     seq1_right_free: bool = False,
     seq2_left_free: bool = False,
     seq2_right_free: bool = False,
+    enable_gap_close_penalty: bool = True,
     score_scale_fn=None,
 ) -> tuple[str, str, float]:
     """Rust-accelerated pairwise Needleman-Wunsch.
@@ -41,5 +42,6 @@ def needleman_wunsch(
         seq1_right_free=seq1_right_free,
         seq2_left_free=seq2_left_free,
         seq2_right_free=seq2_right_free,
+        enable_gap_close_penalty=enable_gap_close_penalty,
         score_scaler_fn=score_scale_fn,
     )

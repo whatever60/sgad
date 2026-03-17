@@ -32,6 +32,20 @@ fn table_score(table: &[f64], a: u8, b: u8) -> f64 {
     table[(a as usize) * 256 + (b as usize)]
 }
 
+#[inline]
+fn resolve_gap_costs(
+    gap_open: f64,
+    gap_extend: f64,
+    enable_gap_close_penalty: bool,
+) -> (f64, f64) {
+    if !enable_gap_close_penalty {
+        return (gap_open, 0.0);
+    }
+    let effective_gap_open = gap_extend + (gap_open - gap_extend) / 2.0;
+    let gap_close_penalty = (gap_open - gap_extend) / 2.0;
+    (effective_gap_open, gap_close_penalty)
+}
+
 #[pyclass(module = "sgad_rust_native")]
 #[derive(Clone)]
 struct RustScoreScaler {
@@ -199,6 +213,7 @@ fn column_score_scale_factor(
     seq1_right_free=false,
     seq2_left_free=false,
     seq2_right_free=false,
+    enable_gap_close_penalty=true,
     score_scaler_fn=None
 ))]
 fn needleman_wunsch(
@@ -212,6 +227,7 @@ fn needleman_wunsch(
     seq1_right_free: bool,
     seq2_left_free: bool,
     seq2_right_free: bool,
+    enable_gap_close_penalty: bool,
     score_scaler_fn: Option<Py<RustScoreScaler>>,
 ) -> PyResult<(String, String, f64)> {
     let table = build_score_table(score_matrix)?;
@@ -224,6 +240,8 @@ fn needleman_wunsch(
 
     let masks = [0_u8, 1_u8, 2_u8];
     let steps = [(1_usize, 1_usize), (0_usize, 1_usize), (1_usize, 0_usize)];
+    let (effective_gap_open, gap_close_penalty) =
+        resolve_gap_costs(gap_open, gap_extend, enable_gap_close_penalty);
 
     let nm = (n + 1) * (m + 1);
     let idx = |s: usize, i: usize, j: usize| -> usize { s * nm + i * (m + 1) + j };
@@ -278,38 +296,118 @@ fn needleman_wunsch(
                         continue;
                     }
 
-                    let factor = column_score_scale_factor(
-                        mask,
-                        i,
-                        j,
-                        n,
-                        m,
-                        seq1_left_free,
-                        seq1_right_free,
-                        seq2_left_free,
-                        seq2_right_free,
-                        rust_scaler.as_ref(),
-                    )?;
-
                     let mut gap_pen = 0.0;
                     if (mask & 1) != 0 {
                         if !((i == 0 && seq1_left_free) || (i == n && seq1_right_free)) {
+                            let factor = column_score_scale_factor(
+                                1,
+                                i,
+                                j,
+                                n,
+                                m,
+                                seq1_left_free,
+                                seq1_right_free,
+                                seq2_left_free,
+                                seq2_right_free,
+                                rust_scaler.as_ref(),
+                            )?;
                             let base = if (prev_mask & 1) != 0 {
                                 gap_extend
                             } else {
-                                gap_open
+                                effective_gap_open
                             };
                             gap_pen += base * factor;
                         }
                     }
                     if (mask & 2) != 0 {
                         if !((j == 0 && seq2_left_free) || (j == m && seq2_right_free)) {
+                            let factor = column_score_scale_factor(
+                                2,
+                                i,
+                                j,
+                                n,
+                                m,
+                                seq1_left_free,
+                                seq1_right_free,
+                                seq2_left_free,
+                                seq2_right_free,
+                                rust_scaler.as_ref(),
+                            )?;
                             let base = if (prev_mask & 2) != 0 {
                                 gap_extend
                             } else {
-                                gap_open
+                                effective_gap_open
                             };
                             gap_pen += base * factor;
+                        }
+                    }
+
+                    if (mask & 1) != 0 && (prev_mask & 2) != 0 {
+                        if !(seq2_left_free && j == 1) {
+                            let close_factor = column_score_scale_factor(
+                                2,
+                                i,
+                                j - 1,
+                                n,
+                                m,
+                                seq1_left_free,
+                                seq1_right_free,
+                                seq2_left_free,
+                                seq2_right_free,
+                                rust_scaler.as_ref(),
+                            )?;
+                            gap_pen += gap_close_penalty * close_factor;
+                        }
+                    }
+                    if (mask & 2) != 0 && (prev_mask & 1) != 0 {
+                        if !(seq1_left_free && i == 1) {
+                            let close_factor = column_score_scale_factor(
+                                1,
+                                i - 1,
+                                j,
+                                n,
+                                m,
+                                seq1_left_free,
+                                seq1_right_free,
+                                seq2_left_free,
+                                seq2_right_free,
+                                rust_scaler.as_ref(),
+                            )?;
+                            gap_pen += gap_close_penalty * close_factor;
+                        }
+                    }
+                    if mask == 0 {
+                        let prev_i = i - 1;
+                        let prev_j = j - 1;
+                        if (prev_mask & 1) != 0 && !(seq1_left_free && i == 1) {
+                            let close_factor = column_score_scale_factor(
+                                1,
+                                prev_i,
+                                prev_j,
+                                n,
+                                m,
+                                seq1_left_free,
+                                seq1_right_free,
+                                seq2_left_free,
+                                seq2_right_free,
+                                rust_scaler.as_ref(),
+                            )?;
+                            gap_pen += gap_close_penalty * close_factor;
+                        }
+                        if (prev_mask & 2) != 0 && !(seq2_left_free && j == 1) {
+                            let close_factor = column_score_scale_factor(
+                                2,
+                                prev_i,
+                                prev_j,
+                                n,
+                                m,
+                                seq1_left_free,
+                                seq1_right_free,
+                                seq2_left_free,
+                                seq2_right_free,
+                                rust_scaler.as_ref(),
+                            )?;
+                            gap_pen += gap_close_penalty * close_factor;
                         }
                     }
 
@@ -331,10 +429,48 @@ fn needleman_wunsch(
         }
     }
 
+    let mut end_scores = [NEG_INF; 3];
+    for s in 0..3 {
+        let mut sc = dp[idx(s, n, m)];
+        if sc != NEG_INF && gap_close_penalty != 0.0 {
+            if s == 1 && !seq1_right_free {
+                let close_factor = column_score_scale_factor(
+                    1,
+                    n,
+                    m,
+                    n,
+                    m,
+                    seq1_left_free,
+                    seq1_right_free,
+                    seq2_left_free,
+                    seq2_right_free,
+                    rust_scaler.as_ref(),
+                )?;
+                sc += gap_close_penalty * close_factor;
+            }
+            if s == 2 && !seq2_right_free {
+                let close_factor = column_score_scale_factor(
+                    2,
+                    n,
+                    m,
+                    n,
+                    m,
+                    seq1_left_free,
+                    seq1_right_free,
+                    seq2_left_free,
+                    seq2_right_free,
+                    rust_scaler.as_ref(),
+                )?;
+                sc += gap_close_penalty * close_factor;
+            }
+        }
+        end_scores[s] = sc;
+    }
+
     let mut best_state = 0_usize;
-    let mut best_score = dp[idx(0, n, m)];
+    let mut best_score = end_scores[0];
     for s in 1..3 {
-        let sc = dp[idx(s, n, m)];
+        let sc = end_scores[s];
         if sc > best_score {
             best_score = sc;
             best_state = s;
@@ -396,7 +532,8 @@ fn needleman_wunsch(
     seq2_left_free=false,
     seq2_right_free=false,
     seq3_left_free=false,
-    seq3_right_free=false
+    seq3_right_free=false,
+    enable_gap_close_penalty=true
 ))]
 fn needleman_wunsch_3d(
     seq1: &str,
@@ -411,6 +548,7 @@ fn needleman_wunsch_3d(
     seq2_right_free: bool,
     seq3_left_free: bool,
     seq3_right_free: bool,
+    enable_gap_close_penalty: bool,
 ) -> PyResult<(String, String, String, f64)> {
     let table = build_score_table(score_matrix)?;
 
@@ -426,6 +564,8 @@ fn needleman_wunsch_3d(
     let step_i = [1_usize, 0, 1, 0, 1, 0, 1];
     let step_j = [1_usize, 1, 0, 0, 1, 1, 0];
     let step_k = [1_usize, 1, 1, 1, 0, 0, 0];
+    let (effective_gap_open, gap_close_penalty) =
+        resolve_gap_costs(gap_open, gap_extend, enable_gap_close_penalty);
 
     let cell = (n + 1) * (m + 1) * (l3 + 1);
     let idx = |s: usize, i: usize, j: usize, k: usize| -> usize {
@@ -501,9 +641,11 @@ fn needleman_wunsch_3d(
                                 gap_pen += if (prev_mask & 1) != 0 {
                                     gap_extend
                                 } else {
-                                    gap_open
+                                    effective_gap_open
                                 };
                             }
+                        } else if (prev_mask & 1) != 0 && !(seq1_left_free && i == 1) {
+                            gap_pen += gap_close_penalty;
                         }
 
                         if (mask & 2) != 0 {
@@ -511,9 +653,11 @@ fn needleman_wunsch_3d(
                                 gap_pen += if (prev_mask & 2) != 0 {
                                     gap_extend
                                 } else {
-                                    gap_open
+                                    effective_gap_open
                                 };
                             }
+                        } else if (prev_mask & 2) != 0 && !(seq2_left_free && j == 1) {
+                            gap_pen += gap_close_penalty;
                         }
 
                         if (mask & 4) != 0 {
@@ -521,9 +665,11 @@ fn needleman_wunsch_3d(
                                 gap_pen += if (prev_mask & 4) != 0 {
                                     gap_extend
                                 } else {
-                                    gap_open
+                                    effective_gap_open
                                 };
                             }
+                        } else if (prev_mask & 4) != 0 && !(seq3_left_free && k == 1) {
+                            gap_pen += gap_close_penalty;
                         }
 
                         let cand = prev + sub + gap_pen;
@@ -546,10 +692,28 @@ fn needleman_wunsch_3d(
         }
     }
 
+    let mut end_scores = [NEG_INF; 7];
+    for s in 0..7 {
+        let mut sc = dp[idx(s, n, m, l3)];
+        if sc != NEG_INF && gap_close_penalty != 0.0 {
+            let mask = masks[s];
+            if (mask & 1) != 0 && !seq1_right_free {
+                sc += gap_close_penalty;
+            }
+            if (mask & 2) != 0 && !seq2_right_free {
+                sc += gap_close_penalty;
+            }
+            if (mask & 4) != 0 && !seq3_right_free {
+                sc += gap_close_penalty;
+            }
+        }
+        end_scores[s] = sc;
+    }
+
     let mut best_state = 0_usize;
-    let mut best_score = dp[idx(0, n, m, l3)];
+    let mut best_score = end_scores[0];
     for s in 1..7 {
-        let sc = dp[idx(s, n, m, l3)];
+        let sc = end_scores[s];
         if sc > best_score {
             best_score = sc;
             best_state = s;

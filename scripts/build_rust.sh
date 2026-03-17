@@ -6,5 +6,6 @@ cd "$ROOT_DIR"
 
 cargo build --manifest-path rust/Cargo.toml --release
 cp rust/target/release/libsgad_rust_native.so src/sgad/rust/sgad_rust_native.so
+cp rust/target/release/libsgad_rust_native.so src/sgad/rust/sgad_rust_native.abi3.so
 
-echo "Built and copied src/sgad/rust/sgad_rust_native.so"
+echo "Built and copied src/sgad/rust/sgad_rust_native.so and .abi3.so"
