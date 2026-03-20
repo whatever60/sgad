@@ -17,16 +17,7 @@ Core alignment controls in this package:
   Complement score invariance additionally requires a complement-symmetric
   substitution matrix.
 
-## New in v1.1.0
-
-- Added symmetry-aware gap-close handling in Python and Rust 2D/3D aligners,
-  with score parity between DP-reported score and rescored final alignment.
-- Added analysis/verification scripts for:
-  - DP-vs-rescore consistency (2D/3D),
-  - symmetry sweeps (swap/reverse/complement),
-  - Python-vs-Rust alignment/score parity.
-- Added high-level interfaces for external dimer assessment libraries:
-  Primer3+`ntthal` batch analysis and IDT OligoAnalyzer batch integration.
+Release history: see [CHANGELOG.md](CHANGELOG.md).
 
 ## 2D Needleman-Wunsch
 
